@@ -187,7 +187,10 @@ Drop the second question when the answer to the first is "None of them".
 ## Writing the plan
 
 1. Fill `templates/setup-plan.md` with `team-design.md`. For Single profile or
-   Small team, fill only the sections the template marks as the short form.
+   Small team use the short form.
 2. Show the whole plan, starting with its plain-language summary.
-3. Ask one question: **Approve**, **Change something**, or **Stop**.
+3. Ask the insurance question: keep the full backup archive forever, or
+   auto-delete after N days (default 14, a cron job the PM may install)? The
+   answer goes in plan section 9.
+4. Ask one question: **Approve**, **Change something**, or **Stop**.
 4. Build only on Approve. On Change, edit and ask again.

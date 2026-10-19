@@ -26,7 +26,7 @@ In a Hermes chat, say:
 Set up the-three-musketeers
 ```
 
-The agent starts an intake. For a new setup, it changes nothing until you approve a written plan. If you are cleaning up an existing install, it first asks to copy your config files to a backup folder, then asks before each destructive step.
+The agent starts an intake. It changes nothing until you approve a written plan. If you are cleaning up an existing install, it inventories your install read-only during planning; every write, including the backups, happens after approval, and destructive steps each get a separate yes.
 
 ## What the-three-musketeers does
 
@@ -46,7 +46,7 @@ How the intake works:
 3. It asks short multiple-choice questions, in up to three rounds.
 4. It gives a fit verdict: Not yet, Single profile, Small team, or Full team.
 5. It writes a plan, starting with a plain-language summary.
-6. It changes nothing until you approve the plan (the only earlier write is the config backup above, for existing installs, and only with your yes).
+6. It changes nothing until you approve the plan. The backups are no exception: the insurance archive and the config snapshot are the first writes of the build, after approval.
 
 The skill is model-agnostic. It carries the constraints, and the intake picks the providers.
 
@@ -58,6 +58,7 @@ Constraints the skill holds, in brief:
 - Published results get a reproducibility lock.
 - Restricted data is handled the way you choose. By default, hosted agents work only on fake or sample data and never open the real files.
 - Secrets and account emails are never printed.
+- Trying it is reversible. Before anything changes, the agent archives your whole Hermes home (the insurance backup) and asks whether to keep it forever or auto-delete it after a set number of days; the plan records an undo checklist.
 
 ## When it will tell you not to use it
 
@@ -82,10 +83,11 @@ The skill asks about this and defaults to attended-only when unsure. It never in
 
 ## Safety and scripts
 
-The skill includes two scripts.
+The skill includes three scripts.
 
 - `scripts/prove_routes.py` sends each profile one short probe message (one model call per profile), using the `hermes` CLI as a subprocess. It then checks that profile's `agent.log` to confirm the profile answered on its configured provider and model, with no silent fallback.
-- `scripts/verify_config_sweep.py` reads config back and diffs it against a pre-change snapshot.
+- `scripts/verify_config_sweep.py` reads config back and diffs it against a pre-change snapshot. Values under secret-looking keys are never printed.
+- `scripts/insurance_backup.sh` archives the whole Hermes home before a migration, prints the restore command, and can install a cron job that auto-deletes the archive after a chosen number of days. It is plain `bash` and `tar`; it makes no model calls.
 
 The Hermes security scan of the skill returned the verdict SAFE. Its MEDIUM findings are calls to `hermes` via subprocess, and documentation that mentions `uv run` and `pip install pyyaml`.
 

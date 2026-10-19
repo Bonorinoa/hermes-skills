@@ -52,7 +52,8 @@ are marked `UNVERIFIED` and must pass step 6 before the first card.
 
 ## 5. Config applied to every profile
 
-Snapshot first, to `~/.hermes/config-backups/<date>-setup/<profile>.config.yaml`.
+Insurance archive first, then snapshot, both after approval
+(`~/.hermes/config-backups/<date>-setup/<profile>.config.yaml`).
 <keys and values from config-keys.md, with any changes>
 
 ## 6. Projects
@@ -77,10 +78,19 @@ Written: profiles <list>; `<workspace>/PROJECTS.md`, `PACKAGING_CONTRACT.md`,
 Not done without a separate yes: push, publish, repository creation, unattended
 dispatch to attended-only seats, <anything else the user excluded>.
 
-## 9. Rollback
+## 9. Insurance and rollback
 
-Config snapshots at <path>. New profiles: `hermes profile delete <name>`. Boards:
-`hermes kanban boards rm <slug>`.
+Insurance archive: `bash scripts/insurance_backup.sh --out <dir>` — retention:
+<forever | auto-delete after N days, cron installed: yes/no>; restore:
+<the command from its output>.
+
+Config snapshots at <path>. Undo checklist:
+- profiles created: <list> -> `hermes profile delete <name>`
+- profiles retired (existing-install): export tarballs at <path>; full restore via the archive
+- config keys changed: <list> (old values in the snapshot)
+- directories created: <list> -> remove only after the archive is confirmed readable
+- boards: <list> -> `hermes kanban boards rm <slug>`
+- remote repositories: <list> -> `gh repo delete <name>` (only if the user asks)
 
 ## 10. Approval
 

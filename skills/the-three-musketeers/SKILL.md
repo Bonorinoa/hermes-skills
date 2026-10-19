@@ -41,13 +41,12 @@ Do not create a profile, set a config key, or write a file until:
 2. you have given a fit verdict;
 3. the user has approved a written plan.
 
-The intake exists so the setup works for *this* user. Skipping it produces a
-confident setup on credentials the user does not have, or on a seat they are not
-allowed to automate.
-
-One exception: the existing-install branch starts by copying every config file
-to a backup folder (read-only toward the install). Ask before doing it. Every
-destructive step in that branch gets its own explicit approval.
+That includes backups: the insurance archive and the config snapshot are the
+first writes of the build, after approval. In the existing-install branch,
+destructive steps additionally get their own separate yes. The intake exists
+so the setup works for *this* user. Skipping it produces a confident setup on
+credentials the user does not have, or on a seat they are not allowed to
+automate.
 
 ## The flow
 
@@ -57,13 +56,13 @@ destructive step in that branch gets its own explicit approval.
 | 2 Ask | Fill only the decision slots the probe could not. At most 5 questions per round, 3 rounds. | `references/intake.md` |
 | 3 Fit verdict | Say plainly: full team, smaller team, single profile, or not yet. Stop if the user agrees it is not worth it. | `references/intake.md` |
 | 4 Plan | Derive roster, routes, fallbacks, locks. Fill `templates/setup-plan.md`. Get approval. | `references/team-design.md` |
-| 5 Build | Profiles, SOULs, config, contract, registry, one board per project. | `references/projects-and-cards.md` |
+| 5 Build | Insurance archive (plan section 9), then profiles, SOULs, config, contract, registry, one board per project. | `references/projects-and-cards.md` |
 | 6 Prove | Each profile answers on its intended route; config reads back. | Verification below |
 | 7 First card | One small real card through builder then checker, end to end. | `references/running-the-board.md` |
 
 A user with an existing install (several profiles, drifted config, unbacked
-projects) takes the branch in `references/existing-install.md` between steps 3
-and 4.
+projects) takes the branch in `references/existing-install.md` between steps 4
+and 5: inventory during planning, every write after approval.
 
 ## The team
 
@@ -162,6 +161,8 @@ Everything else gets the full team.
 hermes profile create <name> [--clone-from <src>]   # a clone copies SOUL + memories: overwrite both
 hermes -p <name> config set <key> <value>           # never hand-edit config.yaml
 hermes -p <name> config get model.provider          # configured route, not proof of use
+bash scripts/insurance_backup.sh --retain 14 --install-cron  # full-home archive before Build; prints restore
+# restore: mv ~/.hermes ~/.hermes-migrated && tar -xzf <archive> -C ~/   (runtime reinstalled after)
 hermes auth list                                    # provider names; do not echo labels
 hermes auth add <provider>                          # the USER runs this; never type a key for them
 hermes project create <name> <folder>
@@ -189,6 +190,9 @@ PyYAML.
    provider and model with no fallback. Each probe costs one short call.
 2. **Config.** `"$HERMES_PY" scripts/verify_config_sweep.py --backup-dir <dir>`
    reads keys back and prints a leaf diff against the pre-change snapshot.
+3. **Insurance.** `bash scripts/insurance_backup.sh --out <dir>` archives the
+   home and prints a restore command; test it once on a throwaway copy of the
+   home before the first card so restore is proven, not assumed.
 3. **First card.** A small real task (for example, one tested function in a
    real project) goes through builder then checker. Accept it only when the
    checker's verdict cites the artifact path and a captured exit code.
@@ -222,4 +226,4 @@ Load on demand with
 - `references/config-keys.md`: recommended config values and why.
 - `references/environment-traps.md`: failures that look like project bugs but come from the environment.
 - `templates/setup-plan.md`, `templates/PACKAGING_CONTRACT.md`, `templates/PROJECTS.md`, `templates/PROFILES.md`, `templates/role-souls.md`
-- `scripts/prove_routes.py`, `scripts/verify_config_sweep.py`
+- `scripts/prove_routes.py`, `scripts/verify_config_sweep.py`, `scripts/insurance_backup.sh`
