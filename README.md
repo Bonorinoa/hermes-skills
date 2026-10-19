@@ -13,9 +13,10 @@ This is one repository for many skills. Each skill lives in its own folder under
 ## Install
 
 ```
-hermes skills tap add Bonorinoa/hermes-skills
-hermes skills install <INSTALL_ID>
+hermes skills install Bonorinoa/hermes-skills/the-three-musketeers
 ```
+
+This installs the skill with its references, templates, and scripts, after Hermes runs its security scan. To see every skill in this repository, browse the [`skills/`](skills/) folder.
 
 ## Use
 
