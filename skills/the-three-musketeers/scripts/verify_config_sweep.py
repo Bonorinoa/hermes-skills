@@ -9,7 +9,9 @@ Two independent checks per profile:
 
 Scope note: this checks the keys it is told about. It is not a general config
 auditor, and it deliberately carries no provider- or user-specific values --
-supply those with --expect.
+supply those with --expect. Values under secret-looking keys (key, token,
+secret, password, auth, ...) are never printed. Changes outside the expected
+keys are reported and counted, not failed: read them.
 
 Usage:
     ~/.hermes/hermes-agent/venv/bin/python verify_config_sweep.py \
@@ -23,6 +25,7 @@ does not.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -30,6 +33,18 @@ try:
     import yaml
 except ImportError:  # pragma: no cover
     sys.exit("PyYAML is required (it ships with Hermes): pip install pyyaml")
+
+# Values under any key matching this are never printed, only reported as changed.
+SENSITIVE = re.compile(r"key|token|secret|passw|credential|auth|cookie|bearer", re.I)
+
+
+def shown(path: tuple[str, ...], value) -> str:
+    """Printable form of a config value: redacted when any path part looks secret."""
+    if value == "<ABSENT>":
+        return value
+    if any(SENSITIVE.search(part) for part in path):
+        return "<redacted>"
+    return str(value)[:28]
 
 # Portable defaults only -- no provider or model ids baked in. Dotted path ->
 # expected value. Use --expect for anything installation-specific.
@@ -127,6 +142,7 @@ def main() -> int:
         return 1
 
     failures = 0
+    unexpected_total = 0
     for profile in profiles:
         path = config_path(home, profile)
         if not path.exists():
@@ -140,7 +156,7 @@ def main() -> int:
         for dotted, want in expect.items():
             got = get(tree, dotted)
             if got != want:
-                print(f"   FAIL readback {'/'.join(dotted)}: got {got!r} want {want!r}")
+                print(f"   FAIL readback {'/'.join(dotted)}: got {shown(dotted, got)} want {shown(dotted, want)}")
                 failures += 1
 
         if backup_dir:
@@ -157,10 +173,17 @@ def main() -> int:
                 ]
                 print(f"   drift: {len(changed)} leaf change(s)")
                 for key, old, new in sorted(changed):
-                    print(f"     {'/'.join(key):44s} {str(old)[:28]:30s} -> {str(new)[:28]}")
+                    print(f"     {'/'.join(key):44s} {shown(key, old):30s} -> {shown(key, new)}")
+                unexpected = [k for k, _, _ in changed if k not in expect]
+                if unexpected:
+                    unexpected_total += len(unexpected)
+                    print(f"   note: {len(unexpected)} change(s) outside the expected keys "
+                          "(reported, not failed; review them)")
         print()
 
     print(f"checked {len(expect)} expected key(s) across {len(profiles)} profile(s)")
+    if unexpected_total:
+        print(f"UNEXPECTED CHANGES: {unexpected_total} (see notes above)")
     print("FAILURES:", failures)
     return 1 if failures else 0
 

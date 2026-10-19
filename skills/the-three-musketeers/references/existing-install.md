@@ -4,7 +4,10 @@ For users whose S1 answer is "clean up an install I already have": many profiles
 (often one per project), drifted config, projects with no remote. Run this
 between the fit verdict and the plan, then design the team on the cleaned install.
 
-## 1. Snapshot (read-only, always first)
+## 1. Snapshot (copies only; ask first)
+
+This is the one write allowed before the plan (SKILL.md, Rule zero): it copies
+config files into a new backup folder and changes nothing in the install.
 
 ```bash
 B=~/.hermes/config-backups/$(date +%F)-migration; mkdir -p "$B"

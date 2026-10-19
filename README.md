@@ -26,7 +26,7 @@ In a Hermes chat, say:
 Set up the-three-musketeers
 ```
 
-The agent starts an intake. It changes nothing until you approve a written plan.
+The agent starts an intake. For a new setup, it changes nothing until you approve a written plan. If you are cleaning up an existing install, it first asks to copy your config files to a backup folder, then asks before each destructive step.
 
 ## What the-three-musketeers does
 
@@ -46,17 +46,17 @@ How the intake works:
 3. It asks short multiple-choice questions, in up to three rounds.
 4. It gives a fit verdict: Not yet, Single profile, Small team, or Full team.
 5. It writes a plan, starting with a plain-language summary.
-6. It changes nothing until you approve the plan.
+6. It changes nothing until you approve the plan (the only earlier write is the config backup above, for existing installs, and only with your yes).
 
 The skill is model-agnostic. It carries the constraints, and the intake picks the providers.
 
 Constraints the skill holds, in brief:
 
-- The checker runs on a different model family from the producers.
+- The checker runs on a different model family from the producers. When your access allows no second family, the plan says so plainly and calls it a same-family review.
 - No free-tier fallback on profiles that work cards.
 - Institutional seats stay attended-only until you confirm that automation is allowed.
 - Published results get a reproducibility lock.
-- Restricted data is kept out of hosted agents.
+- Restricted data is handled the way you choose. By default, hosted agents work only on fake or sample data and never open the real files.
 - Secrets and account emails are never printed.
 
 ## When it will tell you not to use it

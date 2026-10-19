@@ -45,6 +45,10 @@ The intake exists so the setup works for *this* user. Skipping it produces a
 confident setup on credentials the user does not have, or on a seat they are not
 allowed to automate.
 
+One exception: the existing-install branch starts by copying every config file
+to a backup folder (read-only toward the install). Ask before doing it. Every
+destructive step in that branch gets its own explicit approval.
+
 ## The flow
 
 | Step | What happens | Load |

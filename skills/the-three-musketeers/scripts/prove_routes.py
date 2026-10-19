@@ -14,7 +14,8 @@ Usage:
     python3 prove_routes.py engineer verifier writer
     python3 prove_routes.py --all
 
-Exit 0 only when every profile passes. A profile with a concurrent session
+Exit 0 only when every profile passes: right provider and model, no fallback,
+and the probe's reply actually arrived. A profile with a concurrent session
 that makes attribution ambiguous is reported AMBIGUOUS (non-zero), not passed.
 """
 from __future__ import annotations
@@ -97,7 +98,12 @@ def probe(profile: str, timeout: int) -> dict:
     res["calls"] = [m.groups() for l in mine if (m := CALL.search(l))]
     res["fallback"] = any(FALLBACK.search(l) for l in mine)
     on_route = all(p == want_provider and same_model(want_model, m) for m, p in res["calls"])
-    res["status"] = "PASS" if (rc == 0 and res["calls"] and on_route and not res["fallback"]) else "FAIL"
+    if not (rc == 0 and res["calls"] and on_route and not res["fallback"]):
+        res["status"] = "FAIL"
+    elif not res["answer_ok"]:
+        res["status"] = "NO-ANSWER"  # right route, but the probe reply never arrived
+    else:
+        res["status"] = "PASS"
     return res
 
 
