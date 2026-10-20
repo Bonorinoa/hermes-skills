@@ -50,12 +50,13 @@ checking the provider's live model list.
    day. Prefer a flat-rate route, because the PM makes the most calls. Set its
    `delegation.provider` and `delegation.model` to a cheap route for read-only
    fan-out; children inherit those, not a specialist's seat.
-6. **Exact model ids.** Choose them with the user in `hermes model` (an
-   interactive picker over each provider's live list; `--refresh` re-fetches).
-   If that is not possible in this session, write the ids marked `UNVERIFIED`.
-   The plan may be approved with them, but step 6 (Prove) must pass before the
-   first card. Fallback candidates are likewise named in the plan and chosen by
-   a timed probe in step 6.
+6. **Exact model ids.** Write candidate ids in the plan marked `UNVERIFIED`
+   (provider docs, the user's knowledge, or a previous install). Do **not** run
+   the `hermes model` picker during planning: selecting a model writes config,
+   which Rule zero forbids before approval. After approval, in Build, run the
+   picker with the user to choose the real ids, then step 6 (Prove) validates
+   them before the first card. Fallback candidates are likewise named in the
+   plan and chosen by a timed probe in Prove.
 7. **Fallbacks.** Use the table below.
 8. **Turn caps.** Write one `agent.max_turns` number per role. Defaults: PM 60,
    builder 75, checker 100 (checks run long), voice 60.

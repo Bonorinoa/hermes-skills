@@ -193,4 +193,7 @@ Drop the second question when the answer to the first is "None of them".
    auto-delete after N days (default 14, a cron job the PM may install)? The
    answer goes in plan section 9.
 4. Ask one question: **Approve**, **Change something**, or **Stop**.
+
+The `hermes model` picker is not part of planning: selecting a model writes
+config, so ids are written `UNVERIFIED` in the plan and chosen after approval.
 4. Build only on Approve. On Change, edit and ask again.

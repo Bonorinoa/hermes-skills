@@ -161,7 +161,7 @@ Everything else gets the full team.
 hermes profile create <name> [--clone-from <src>]   # a clone copies SOUL + memories: overwrite both
 hermes -p <name> config set <key> <value>           # never hand-edit config.yaml
 hermes -p <name> config get model.provider          # configured route, not proof of use
-bash scripts/insurance_backup.sh --retain 14 --install-cron  # full-home archive before Build; prints restore
+bash scripts/insurance_backup.sh --retain 14 --install-cron  # full-home archive; first write of Build, after approval
 # restore: mv ~/.hermes ~/.hermes-migrated && tar -xzf <archive> -C ~/   (runtime reinstalled after)
 hermes auth list                                    # provider names; do not echo labels
 hermes auth add <provider>                          # the USER runs this; never type a key for them

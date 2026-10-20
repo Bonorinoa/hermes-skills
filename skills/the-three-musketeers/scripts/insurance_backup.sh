@@ -70,7 +70,11 @@ Restore (only to undo this migration):
   mv "$HOME_DIR" "$HOME_DIR-migrated"      # keep the changed one aside
   tar -xzf "$ARCHIVE" -C "$PARENT"         # puts "$BASE" back exactly
 Then reinstall the Hermes runtime (it is excluded from the archive) and
-restart. When you are sure the new setup is good, remove the archive with
+restart. If you installed the retention cron job, remove it with
+  crontab -l | grep -v 'hermes-home-backup' | crontab -
+If you installed the gateway service, remove it with
+  hermes gateway uninstall
+When you are sure the new setup is good, remove the archive with
   rm -P "$ARCHIVE"
 EOF
 
@@ -82,8 +86,17 @@ if [ "$RETAIN" != "forever" ]; then
   if [ "$INSTALL_CRON" -eq 1 ]; then
     if [ "$YES" -eq 0 ]; then printf 'Install this cron job? [y/N]: '; read -r A; A=${A:-no}; else A=yes; fi
     case "$A" in
-      y|Y|yes) ( crontab -l 2>/dev/null | grep -v "hermes-home-backup" ; echo "$CRON" ) | crontab -
-        echo "cron installed. (verify: crontab -l)" ;;
+      y|Y|yes)
+        # Merge robustly: an absent crontab or an empty filtered table must
+        # still install the job (set -euo pipefail otherwise kills the pipe).
+        KEEP=$( { crontab -l 2>/dev/null || true; } | grep -v "hermes-home-backup" || true )
+        { [ -z "$KEEP" ] || printf '%s\n' "$KEEP"; printf '%s\n' "$CRON"; } | crontab -
+        if crontab -l 2>/dev/null | grep -qF "hermes-home-backup"; then
+          echo "cron installed (verify: crontab -l)."
+        else
+          echo "cron install could not be confirmed; the line above stays available." >&2
+          exit 1
+        fi ;;
       *) echo "cron not installed; the line above stays available." ;;
     esac
   fi

@@ -43,8 +43,9 @@ because <reason>. User override, if any: <...>. Hard limits that still apply: <.
 **Independence:** checker family = <...>; producer families (PM included) = <...>.
 <Independent | Weak check (small local model, must catch the planted error) | Same-family review, accepted because ...>
 
-Single profile: keep only the `default` row. Model ids not chosen in `hermes model`
-are marked `UNVERIFIED` and must pass step 6 before the first card.
+Single profile: keep only the `default` row. Model ids are `UNVERIFIED` at
+approval (the `hermes model` picker writes config, so it runs after approval);
+step 6 (Prove) validates them before the first card.
 
 ## 4. Credentials the user must add
 
@@ -91,6 +92,8 @@ Config snapshots at <path>. Undo checklist:
 - directories created: <list> -> remove only after the archive is confirmed readable
 - boards: <list> -> `hermes kanban boards rm <slug>`
 - remote repositories: <list> -> `gh repo delete <name>` (only if the user asks)
+- retention cron job (if installed): remove with `crontab -l | grep -v 'hermes-home-backup' | crontab -`
+- gateway service (if installed): remove with `hermes gateway uninstall`
 
 ## 10. Approval
 

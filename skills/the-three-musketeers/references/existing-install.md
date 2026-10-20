@@ -103,8 +103,9 @@ the insurance choice, and the undo checklist. Approve the plan before any write.
 
 6. **Record the undo checklist** in the plan's section 9: profiles retired
    (export tarballs), profiles created, config keys changed (old values live
-   in the snapshot), directories created, boards, remote repositories. The
-   checklist plus the insurance archive is the whole rollback story.
+   in the snapshot), directories created, boards, remote repositories, the
+   retention cron job if installed, and the gateway service if installed.
+   The checklist plus the insurance archive is the whole rollback story.
 
 ## After Build
 
