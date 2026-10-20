@@ -26,8 +26,9 @@ checking the provider's live model list.
    - institutional seat: only if S5 = yes;
    - metered: yes, within the S4 budget;
    - local: yes, after it passes the first card. Confirm the local server
-     answers (`ollama list` succeeds), take the provider id Hermes shows for it
-     in `hermes model`, and expect the usable context to be limited by VRAM;
+     answers (`ollama list` succeeds) and expect the usable context to be
+     limited by VRAM. Record the provider id as UNVERIFIED here; the
+     `hermes model` picker runs after approval, per step 6 (it writes config);
    - free tier: attended only.
 2. **Builder (Athos).** The strongest coding model among the unattended routes.
    If there is none, the setup is attended (Small team).
