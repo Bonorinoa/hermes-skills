@@ -42,6 +42,14 @@ Exact model ids come later, with the user, from `hermes model` (an interactive
 picker that reads each provider's live model list). See `team-design.md`
 step 6.
 
+Spine files (S11) are found per project, not in one place: once the user names
+the workspace, list candidates under each project root (`README*`, `AGENTS.md`,
+`STATUS.md`, `docs/decisions*`, `DECISIONS*`) and show the list to the user.
+Read nothing into a project tree beyond file names until planning is approved.
+A hit means the pointer goes in the registry and the layout stays as it is; a
+miss across every project means the plan proposes one minimal `AGENTS.md` per
+project, and the user decides whether that file may be written.
+
 A provider in `hermes auth list` is a credential, not an entitlement. It may be
 exhausted, metered, a free tier, or an institutional seat. Billing type and
 permission come from the user (S3, S5).
@@ -60,6 +68,7 @@ permission come from the user (S3, S5).
 | S8 | Desks: builder, checker, voice (prose or design), data | roster | no |
 | S9 | Workspace: where projects live; projects without a remote | registry, backup | partly |
 | S10 | Platform: OS, laptop or always-on machine, local GPU/RAM, notification channel | overnight runs, local checker | partly |
+| S11 | Existing per-project records: does each project already have a status file and a decision log, and what are they called | spine pointers; whether a spine is proposed at all | partly (look for `README`, `AGENTS.md`, `STATUS.md`, a decisions folder) |
 
 ## Round 1: is it worth it? (S1, S2, S6, S7)
 
@@ -180,6 +189,10 @@ Drop the second question when the answer to the first is "None of them".
 
 - Voice desk: mostly prose (`writer`) or mostly figures and slides (`creative`)?
 - Where do projects live? (open question) Do any lack a git remote?
+- Existing records (S11): "Do your projects already keep a status file or a
+  decision log?" List the candidates the probe found as choices, with "None of
+  them" last. Record what they are called; the plan reuses them by name and
+  never renames a file inside a repository.
 - Will tasks run overnight on a laptop, or on a machine that stays on?
 - A notification channel (for example Telegram) for blocked tasks?
 - Enough local GPU/RAM for an open-weight checker? (Only if S3 lacks a second family.)

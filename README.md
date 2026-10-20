@@ -8,7 +8,7 @@ This is one repository for many skills. Each skill lives in its own folder under
 
 | Skill | Version | What it does |
 |---|---|---|
-| [the-three-musketeers](skills/the-three-musketeers/) | 0.9.0 (pre-release) | Set up a Hermes agent team for research projects. |
+| [the-three-musketeers](skills/the-three-musketeers/) | 0.10.0 (pre-release) | Set up a Hermes agent team for research projects. |
 
 ## Install
 
@@ -28,6 +28,16 @@ Set up the-three-musketeers
 
 The agent starts an intake. It changes nothing until you approve a written plan. If you are cleaning up an existing install, it inventories your install read-only during planning; every write, including the backups, happens after approval, and destructive steps each get a separate yes.
 
+## Repo checks
+
+Every skill in this repo is checked structurally before a push: frontmatter parses, `description` fits the loader's limit, every `references/`, `templates/`, and `scripts/` path named in the body exists, code fences balance, markdown tables keep their column count, and scripts compile.
+
+```
+python3 scripts/check_repo.py     # the Hermes runtime python has PyYAML
+```
+
+It runs on every push and pull request in `.github/workflows/check.yml`.
+
 ## What the-three-musketeers does
 
 It is for researchers, PhD students, and scientists who build tools and juggle several projects, often with flat-rate or institutional (EDU) model access rather than pay-per-token budgets.
@@ -38,6 +48,17 @@ It sets up:
 - three specialists: a builder (Athos, `engineer`), a checker (Porthos, `verifier`), and a voice (Aramis, `writer` or `creative`);
 - one Kanban board per project;
 - project truth kept on disk, not in an agent's memory. The check is the "wipe test": can an agent with no memory rebuild the project's state from its files?
+
+It also fixes where a fact goes, which is the part most setups get wrong:
+
+| Store | Holds |
+|---|---|
+| memory | the person: role, preferences, standing conventions |
+| skills | procedures, pitfalls, commands that actually ran |
+| the project's spine (a status file, a decision log) | where the project is now, and the why, dated |
+| the workspace registry | one row per project: root, spine pointer, phase, locks |
+
+The board holds work in flight and the transcript holds conversation; neither is the record. When they disagree with the project's files, the files win.
 
 How the intake works:
 

@@ -1,5 +1,60 @@
 # Projects and cards
 
+## Where things live
+
+Four stores. Each question is a test the agent applies before it writes
+anything down, and each test fails visibly in one store and silently in the
+other.
+
+| Store | Holds | Test | Failure if misused |
+|---|---|---|---|
+| **memory** | the person: role, preferences, standing conventions, stable environment facts | Still true next month, in every project? | Fills its character budget and starts evicting the facts that matter, with no record of what was lost |
+| **skills** | procedures, pitfalls, exact commands, and the checks that prove they ran | Would it change how a task gets done? | A procedure buried in memory loads on every turn and is applied out of context |
+| **the project's spine** | a status file (phase, what is blocked, what changed last) and a decision log (the why, dated, with who decided) | Does doing the work make it stale? | A status line in memory outlives its truth and nothing marks it as expired |
+| **the workspace registry** | one row per project: root, spine pointer, phase, locks | Is this a pointer rather than a record? | The registry becomes a second status file, and the two disagree |
+
+Two more places hold work instead of truth:
+
+- The **Kanban board** holds work in flight. A card's done state, its summary,
+  and its comments describe an attempt, and a summary is a self-report.
+- The **session transcript** holds conversation. It is searchable but is not
+  the record; a decision that only exists in a transcript is lost to any agent
+  that starts a new session.
+
+**Truth order.** Git remote, then the project's spine, then memory. When two
+disagree, the higher one wins and the lower one is corrected, not argued with.
+A card may never overrule the spine, and memory may never overrule a file.
+
+### Names are the user's
+
+The contract specifies what must be *findable*, not where it is written. Before
+proposing any file, look for the project's existing spine: `README`,
+`AGENTS.md`, `STATUS.md`, `DECISIONS.md`, `docs/decisions/`, a lab notebook.
+Record the pointer in `PROJECTS.md` and leave the layout alone. Only a project
+with no spine gets a proposed minimal `AGENTS.md` answering the six questions,
+and that proposal is a question, not a write — many people will not want a new
+file in a repository that is already framed for a paper.
+
+The same applies inside the workspace: `PROJECTS.md`, `PACKAGING_CONTRACT.md`,
+and `PROFILES.md` are conventional names, and a user who already keeps a
+portfolio file keeps theirs.
+
+### Misfilings agents actually make
+
+| Written | Where it belongs | Why |
+|---|---|---|
+| "Provider X is serving again after the rebuild (probe, today)" | the status file | a dated observation, not a standing fact |
+| "OpenRouter credits exhausted, recharged" | nowhere; it is gone | an event with no future use |
+| "Use `env -u PYTHONPATH` for project Python" | a skill's pitfalls | a procedure that changes how the task runs |
+| "The checker accepted card 47" | the board | an attempt, not portfolio state |
+| "User prefers control over convenience unless quality differs a lot" | memory | durable and task-independent |
+| "User's name, timezone, and that the institutional seat is attended-only" | memory | standing facts every session needs |
+
+A useful symptom to name for the user: a memory file near its character limit
+is almost always a project notebook that has been growing in the wrong store.
+Move the dated lines to the status files and the procedures to a skill; nothing
+is lost, and the next session stops re-reading stale state.
+
 ## The wipe test
 
 A project is set up when an agent with zero memory can answer six questions from

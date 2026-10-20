@@ -25,6 +25,7 @@ waits for you, and what will never happen without asking.>
 | S8 Desks | | user / default |
 | S9 Workspace | | probe + user |
 | S10 Platform | | probe + user |
+| S11 Existing status / decision records | <file names per project, or "none"> | probe + user |
 
 ## 2. Fit verdict
 

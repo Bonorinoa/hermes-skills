@@ -1,7 +1,7 @@
 ---
 name: the-three-musketeers
 description: "Set up a Hermes agent team for research projects."
-version: 0.9.0
+version: 0.10.0
 author: Augusto González-Bonorino and Claude (Anthropic)
 license: MIT
 metadata:
@@ -63,6 +63,34 @@ automate.
 A user with an existing install (several profiles, drifted config, unbacked
 projects) takes the branch in `references/existing-install.md` between steps 4
 and 5: inventory during planning, every write after approval.
+
+## Where things live
+
+Four stores, one question each. A fact goes in the store whose failure you can
+live with: a stale memory entry is invisible, a stale status file is obvious.
+
+| Store | Holds | Ask before writing |
+|---|---|---|
+| **memory** | the person: role, preferences, and environment facts that do not change with the work | Still true in a month, in every project? |
+| **skills** | procedures, pitfalls, and the commands that actually ran | Would it change how a task gets done? |
+| **the project's spine** | a status file (where it is now) and a decision log (the why, dated, and who decided) | Does doing the work make it stale? |
+| **the workspace registry** | one row per project: root, spine pointer, phase, locks | Is this a pointer, not a record? |
+
+Two stores never hold truth: the **Kanban board** and the **session
+transcript**. They describe work and conversation. When either disagrees with
+the project's own files, the files win. Truth order: git remote, then the
+project's spine, then memory.
+
+Names are the user's. Reuse an existing `README`, `AGENTS.md`, `STATUS.md`, or
+decision log; the intake (S11) asks which exist. Propose a spine only for a
+project that has none, and ask before writing it into a repository.
+
+Common misfilings, worth naming out loud to the user:
+
+- "Provider X answered again after the rebuild" is a **status** line, not memory.
+- "Run project Python with `env -u PYTHONPATH`" is a **skill** instruction.
+- "Prefers oxblood and sand" is **memory**.
+- "The checker accepted card 47" belongs on the **board**, never in the registry.
 
 ## The team
 
@@ -133,6 +161,12 @@ Each rule prevents a failure observed while running this setup in production.
    checkable criterion, a captured exit code (never through a pipe), and the
    model route that produced it.
 10. **Smallest team that fits.** Add a desk only from an observed need.
+11. **Memory holds the person, not the project.** Memory has a hard character
+    budget, and a dated status line in it ("route working again as of ...",
+    "focus until December") goes stale without anything pointing at it. Project
+    state belongs in the project's spine, procedures in a skill, and only
+    durable facts about the user in memory. The table under *Where things live*
+    is the test.
 
 The user may override the fit verdict, but not the five **hard limits** in
 `references/intake.md` (no unattended free tiers, no unattended attended-only
