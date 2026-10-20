@@ -227,10 +227,10 @@ PyYAML.
 3. **Insurance.** `bash scripts/insurance_backup.sh --out <dir>` archives the
    home and prints a restore command; test it once on a throwaway copy of the
    home before the first card so restore is proven, not assumed.
-3. **First card.** A small real task (for example, one tested function in a
+4. **First card.** A small real task (for example, one tested function in a
    real project) goes through builder then checker. Accept it only when the
    checker's verdict cites the artifact path and a captured exit code.
-4. **Wipe test.** In a fresh session with no memory, point an agent at the
+5. **Wipe test.** In a fresh session with no memory, point an agent at the
    registry and ask it the six questions for one project.
 
 ## Pitfalls
