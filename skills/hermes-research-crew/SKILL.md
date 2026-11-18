@@ -216,8 +216,8 @@ hermes kanban --board <slug> set-model <id> <model> --provider <p>   # pin BEFOR
 hermes kanban --board <slug> create "<title>" --assignee verifier --initial-status blocked ...  # parked at birth
 hermes kanban unblock <id>                                          # release while the user is present
 hermes config set kanban.dispatch_in_gateway false                  # attended mode: no background dispatch
-hermes kanban --board <slug> dispatch --max 1                       # at most one card this pass, user present
-hermes config set kanban.max_in_progress 1                          # real cap on running cards, all boards
+hermes kanban --board <slug> dispatch --max 1                       # start a card only if none runs on this board
+hermes config set kanban.max_in_progress 1                          # cap on running cards across all boards
 hermes config get kanban.dispatch_in_gateway ; hermes gateway status # who dispatches, and is it up
 hermes kanban request-review <id> --reviewer verifier --summary "..."   # same-card review (running-the-board.md)
 hermes kanban swarm "<goal>" --worker engineer:"<title>" --verifier verifier --synthesizer writer

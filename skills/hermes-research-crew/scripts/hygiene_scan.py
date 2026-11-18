@@ -106,8 +106,9 @@ def main() -> int:
     ap.add_argument("--big-mb", type=float, default=200.0)
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
-    if not (math.isfinite(args.ttl_days) and math.isfinite(args.big_mb)) or args.ttl_days < 0 or args.big_mb < 0:
-        ap.error("--ttl-days and --big-mb must be finite, non-negative numbers")
+    if (not (math.isfinite(args.ttl_days) and math.isfinite(args.big_mb))
+            or args.ttl_days < 0 or args.big_mb < 0 or args.big_mb > 1e9):
+        ap.error("--ttl-days must be a finite number >= 0; --big-mb a number from 0 to 1e9")
 
     roots = [Path(r).expanduser().resolve() for r in args.root]
     missing = [str(r) for r in roots if not r.is_dir()]

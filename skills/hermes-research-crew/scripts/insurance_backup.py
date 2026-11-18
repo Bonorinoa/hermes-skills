@@ -38,8 +38,10 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fcntl
 import os
 import re
+import secrets
 import shlex
 import sqlite3
 import stat
@@ -152,14 +154,20 @@ def build_archive(home: Path, archive: Path) -> dict:
     return stats
 
 
-def install_cron(line: str, archive_name: str) -> bool:
-    current = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
-    lines = current.stdout.splitlines() if current.returncode == 0 else []
-    tag = f"{MARKER}:{archive_name}"
-    kept = [l for l in lines if tag not in l]
-    subprocess.run(["crontab", "-"], input="\n".join(kept + [line]) + "\n", text=True, check=True)
-    check = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
-    return check.returncode == 0 and tag in check.stdout
+def install_cron(line: str, tag: str) -> bool:
+    """Append one job; existing lines are kept untouched (the tag is unique per job).
+
+    A per-user lock serialises the crontab read-modify-write, so two backups
+    installing at the same moment cannot drop each other's job.
+    """
+    lock_path = Path(tempfile.gettempdir()) / f"{MARKER}-cron-{os.getuid()}.lock"
+    with open(lock_path, "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        current = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+        lines = current.stdout.splitlines() if current.returncode == 0 else []
+        subprocess.run(["crontab", "-"], input="\n".join(lines + [line]) + "\n", text=True, check=True)
+        check = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
+    return check.returncode == 0 and check.stdout.splitlines().count(line) == 1
 
 
 def main() -> int:
@@ -234,12 +242,13 @@ def main() -> int:
     q = shlex.quote
     print(f"""
 Restore (only to undo this migration):
-  mv {q(str(home))} {q(str(home) + '-migrated')}          # keep the changed one aside
-  tar -xzf {q(str(archive))} -C {q(str(home.parent))}   # puts {home.name} back
+  mv {q(str(home))} {q(str(home) + '-migrated')}
+  tar -xzf {q(str(archive))} -C {q(str(home.parent))}
+The first line keeps the changed home aside; the second puts the archived one back.
 Then reinstall the Hermes runtime (it is not in the archive) and restart.
 Undo changes outside this folder with the plan's undo checklist (section 9).
-When you are sure the new setup is good, delete the archive:
-  rm -P {q(str(archive))}      # macOS; on Linux: shred -u""")
+When you are sure the new setup is good, delete the archive (on Linux: shred -u):
+  rm -P {q(str(archive))}""")
 
     if retain != "forever":
         a = str(archive)
@@ -248,7 +257,9 @@ When you are sure the new setup is good, delete the archive:
                   f"misread (allowed: letters, digits, space and . _ / + , : @ ~ -). Delete it by hand\n"
                   f"after {retain} days, or rerun with a plainer --out.")
             return 0
-        tag = f"{MARKER}:{archive.name}"
+        # A random token makes each job's identity unique, even for equal archive
+        # names in different folders or an unrelated line that mentions the marker.
+        tag = f"{MARKER}:{archive.name}:{secrets.token_hex(8)}"
         line = (f"0 3 * * * find {q(a)} -mtime +{retain} -delete 2>/dev/null; "
                 f"[ -e {q(a)} ] || (crontab -l | grep -vF {q(tag)} | crontab -)"
                 f"  # {tag}")
@@ -257,7 +268,7 @@ When you are sure the new setup is good, delete the archive:
             answer = "yes" if args.yes else (input("Install this cron job? [y/N]: ").strip() or "no")
             if answer.lower() in {"y", "yes"}:
                 try:
-                    ok = install_cron(line, archive.name)
+                    ok = install_cron(line, tag)
                 except (OSError, subprocess.CalledProcessError) as exc:
                     print(f"cron install failed: {exc}", file=sys.stderr)
                     return 1

@@ -148,8 +148,8 @@ Record the S5 answer in the plan. Until it is "yes":
   force): no background dispatcher at all. Set
   `hermes config set kanban.dispatch_in_gateway false` and do not run
   `hermes kanban daemon`. While the user is present, the orchestrator runs
-  `hermes kanban --board <b> dispatch --max 1`, which starts at most one ready
-  card per pass; run the next pass after that card finishes.
+  `hermes kanban --board <b> dispatch --max 1`, which starts a card only when
+  none is already running on that board.
 - **Attended-only profiles in an otherwise unattended team:** create their root
   cards already parked with `hermes kanban --board <b> create "<title>"
   --assignee <p> --initial-status blocked ...`, which leaves no window for the
@@ -165,11 +165,15 @@ park the cards **before** installing or starting the dispatcher, run this check,
 then start it.
 
 **One subscription shared by several desks** hits its usage window fast. Cap
-concurrency with `hermes config set kanban.max_in_progress 1` (in the profile
-that dispatches): it limits running cards across all boards. Chaining cards
-(`--parent`) instead of fanning out also helps. `--max` on `dispatch` or
-`daemon` is not a concurrency cap: it limits how many cards start per pass or
-tick, so long cards can still overlap.
+concurrency at the right level:
+
+- one board: `--max 1` on `dispatch` or `daemon` counts cards already running
+  on that board, so it is a per-board cap (the installed help text describes it
+  as per pass; the dispatcher source counts running cards);
+- all boards: `hermes config set kanban.max_in_progress 1` in the profile that
+  dispatches counts running cards across every board.
+
+Chaining cards (`--parent`) instead of fanning out also helps.
 
 Personal subscriptions have terms too: some providers restrict using a consumer
 login through third-party tools. The plan's approval line includes the user's

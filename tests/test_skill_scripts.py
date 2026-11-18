@@ -237,8 +237,44 @@ with tempfile.TemporaryDirectory(prefix="crew-fixture-") as td:
     check("R6 fresh nested folder makes scratch fresh", st6.get("card-old") is False, str(st6))
 
     # R7: non-finite numbers are bad arguments (exit 2)
-    for flag, val in [("--ttl-days", "nan"), ("--big-mb", "nan"), ("--big-mb", "inf")]:
+    for flag, val in [("--ttl-days", "nan"), ("--big-mb", "nan"), ("--big-mb", "inf"), ("--big-mb", "1e308")]:
         check(f"R7 {flag} {val} exits 2", run([SCAN, "--root", proj, flag, val]).returncode == 2)
+
+    # ---------- regressions from review round 2 ----------
+    # R8: a newline in the home name must not inject a command into the restore block
+    nlhome = t / "nl" / "line\ntouch RSENT\n#"; nlhome.mkdir(parents=True)
+    (nlhome / "config.yaml").write_text("x: 1\n")
+    r8 = run([BACKUP, "--hermes-home", nlhome, "--out", t / "nlout", "--retain", "forever", "--yes"])
+    out8 = r8.stdout
+    block = out8[out8.index("Restore (only"):out8.index("The first line keeps")]
+    cmds = [l for l in block.splitlines()[1:] if l.strip()]
+    work = t / "nlwork"; work.mkdir()
+    rexec = subprocess.run(["sh", "-c", "\n".join(cmds)], cwd=work, capture_output=True, text=True)
+    check("R8 newline in home name: printed restore block runs and injects nothing",
+          r8.returncode == 0 and rexec.returncode == 0 and not (work / "RSENT").exists()
+          and not (t / "RSENT").exists() and (nlhome / "config.yaml").exists(), rexec.stderr[:120])
+
+    # R9: equal archive names in two folders get two independent cron jobs
+    tab.write_text("15 4 * * * /usr/bin/unrelated-job\n")
+    procs = [subprocess.Popen([PY, str(BACKUP), "--hermes-home", str(home), "--out", str(t / d), "--retain", "2",
+                               "--install-cron", "--yes"], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+             for d in ("same_a", "same_b")]
+    rcs = [p.wait(timeout=120) for p in procs]
+    jobs = [l for l in tab.read_text().splitlines() if "hermes-home-backup:" in l]
+    a_arc = next((t / "same_a").glob("*.tar.gz")); b_arc = next((t / "same_b").glob("*.tar.gz"))
+    a_job = [l for l in jobs if str(a_arc) in l]; b_job = [l for l in jobs if str(b_arc) in l]
+    decoy2 = "6 6 * * * echo hermes-home-backup:" + a_arc.name
+    tab.write_text(tab.read_text() + decoy2 + "\n")
+    if a_job:
+        os.utime(a_arc, (expired, expired))
+        subprocess.run(["sh", "-c", a_job[0].split(" ", 5)[5]], env=env, timeout=30)
+    final9 = tab.read_text().splitlines()
+    check("R9 two installs exit 0", rcs == [0, 0], str(rcs))
+    check("R9 expiring A removes only A's job (B's job, decoy and unrelated survive)",
+          len(a_job) == 1 and len(b_job) == 1 and not a_arc.exists() and b_arc.exists()
+          and a_job[0] not in final9 and b_job[0] in final9 and decoy2 in final9
+          and "15 4 * * * /usr/bin/unrelated-job" in final9,
+          f"a_job={len(a_job)} b_job={len(b_job)}")
 
 failed = [n for n, ok in results if not ok]
 print(f"\n{len(results) - len(failed)}/{len(results)} passed")
