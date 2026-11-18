@@ -13,11 +13,19 @@
 
 What it does:
   - archives the home, skipping the reinstallable runtime and caches
-    (top-level hermes-agent/, cache/, scratch/, installs/, tmp/);
+    (top-level hermes-agent/, cache/, scratch/, installs/, tmp/); symlinks are
+    kept as links, never followed;
   - copies every SQLite database through SQLite's online backup API, so a
     database that Hermes is writing to is captured consistently; the live
-    -wal/-shm files are not copied (the snapshot already contains them);
-  - writes the archive with owner-only permissions (0600).
+    -wal/-shm files are not copied (the snapshot already contains them). A
+    database that cannot be snapshotted is copied raw with its -wal/-shm files,
+    and a WARNING says so;
+  - writes the archive owner-only (0600) into an owner-only folder (0700); an
+    existing --out folder that other users can read is refused.
+
+The printed restore and cron commands quote every path. A cron line is only
+offered when the archive path has no characters cron or the shell would misread
+(%, quotes, $, `, \\); otherwise delete the archive by hand.
 
 The archive CONTAINS CREDENTIALS (auth.json, .env). Keep it on this machine and
 never upload it. It restores the Hermes home only; other changes (profiles on
@@ -32,17 +40,22 @@ import argparse
 import datetime as dt
 import os
 import re
+import shlex
 import sqlite3
+import stat
 import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.parse
 from pathlib import Path
 
 EXCLUDED_TOP = {"hermes-agent", "cache", "scratch", "installs", "tmp"}
 SIDE_FILES = ("-wal", "-shm", "-journal")
 SQLITE_MAGIC = b"SQLite format 3\x00"
 MARKER = "hermes-home-backup"
+# Characters a cron line can carry safely once single-quoted (no %, quotes, $, `, \).
+CRON_SAFE = re.compile(r"[A-Za-z0-9 ._/+,:@~-]+")
 
 
 def parse_retain(value: str) -> str:
@@ -60,9 +73,16 @@ def is_sqlite(path: Path) -> bool:
 
 
 def snapshot_sqlite(src: Path, dest: Path) -> None:
+    """Consistent copy through SQLite's online backup API (includes WAL content)."""
     dest.parent.mkdir(parents=True, exist_ok=True)
-    source = sqlite3.connect(f"file:{src}?mode=ro", uri=True, timeout=30)
+    # Percent-encode the path: '?', '#' and '%' would otherwise be parsed as URI syntax
+    # and open a different (empty) database.
+    uri = "file:" + urllib.parse.quote(str(src)) + "?mode=ro"
+    source = sqlite3.connect(uri, uri=True, timeout=30)
     try:
+        opened = source.execute("PRAGMA database_list").fetchone()[2]
+        if os.path.realpath(opened) != os.path.realpath(src):
+            raise sqlite3.OperationalError(f"opened {opened!r} instead of {str(src)!r}")
         target = sqlite3.connect(dest)
         try:
             source.backup(target)
@@ -89,12 +109,21 @@ def build_archive(home: Path, archive: Path) -> dict:
             except FileNotFoundError:
                 stats["vanished"] += 1
                 continue
+            # os.walk does not descend into symlinked directories; keep them as links.
+            for d in [d for d in dirnames if (here / d).is_symlink()]:
+                try:
+                    tar.add(here / d, arcname=f"{arc_dir}/{d}", recursive=False)
+                    stats["files"] += 1
+                except FileNotFoundError:
+                    stats["vanished"] += 1
+            dirnames[:] = [d for d in dirnames if not (here / d).is_symlink()]
             names = set(filenames)
+            raw_dbs: set[str] = set()
             for name in sorted(filenames):
                 path = here / name
                 arcname = f"{arc_dir}/{name}"
                 if any(name.endswith(s) and name[: -len(s)] in names for s in SIDE_FILES):
-                    continue  # covered by the snapshot of the main database file
+                    continue  # covered by the snapshot (or added below with a raw copy)
                 try:
                     if not path.is_symlink() and is_sqlite(path):
                         copy = Path(stage) / arcname
@@ -104,12 +133,22 @@ def build_archive(home: Path, archive: Path) -> dict:
                         except sqlite3.Error:
                             copy = path  # locked or damaged: keep the raw bytes, and say so
                             stats["db_fallbacks"] += 1
+                            raw_dbs.add(name)
                         tar.add(copy, arcname=arcname, recursive=False)
                     else:
                         tar.add(path, arcname=arcname, recursive=False)
                     stats["files"] += 1
                 except FileNotFoundError:
                     stats["vanished"] += 1
+            # A raw database copy needs its -wal/-shm/-journal files too.
+            for name in sorted(raw_dbs):
+                for s in SIDE_FILES:
+                    side = here / (name + s)
+                    if side.exists():
+                        try:
+                            tar.add(side, arcname=f"{arc_dir}/{name}{s}", recursive=False)
+                        except FileNotFoundError:
+                            stats["vanished"] += 1
     return stats
 
 
@@ -151,7 +190,16 @@ def main() -> int:
         return 2
 
     os.umask(0o077)
-    if not out.exists():
+    if out.exists():
+        if not out.is_dir():
+            print(f"--out exists and is not a folder: {out}", file=sys.stderr)
+            return 1
+        mode = stat.S_IMODE(out.stat().st_mode)
+        if mode & 0o077:
+            print(f"--out {out} is readable by other users (mode {mode:o}); the archive holds credentials.\n"
+                  f"Use a private folder, or run: chmod 700 {shlex.quote(str(out))}", file=sys.stderr)
+            return 1
+    else:
         out.mkdir(parents=True, mode=0o700)
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     archive = out / f"{MARKER}-{stamp}.tar.gz"
@@ -183,20 +231,27 @@ def main() -> int:
         print("  WARNING: some databases could not be snapshotted and were copied raw; "
               "they may be inconsistent if Hermes was writing to them.")
 
+    q = shlex.quote
     print(f"""
 Restore (only to undo this migration):
-  mv "{home}" "{home}-migrated"          # keep the changed one aside
-  tar -xzf "{archive}" -C "{home.parent}"   # puts "{home.name}" back
+  mv {q(str(home))} {q(str(home) + '-migrated')}          # keep the changed one aside
+  tar -xzf {q(str(archive))} -C {q(str(home.parent))}   # puts {home.name} back
 Then reinstall the Hermes runtime (it is not in the archive) and restart.
 Undo changes outside this folder with the plan's undo checklist (section 9).
 When you are sure the new setup is good, delete the archive:
-  rm -P "{archive}"      # macOS; on Linux: shred -u""")
+  rm -P {q(str(archive))}      # macOS; on Linux: shred -u""")
 
     if retain != "forever":
         a = str(archive)
-        line = (f'0 3 * * * find "{a}" -mtime +{retain} -delete 2>/dev/null; '
-                f'[ -e "{a}" ] || (crontab -l | grep -v "{MARKER}:{archive.name}" | crontab -)'
-                f'  # {MARKER}:{archive.name}')
+        if not CRON_SAFE.fullmatch(a):
+            print(f"\nNo cron line: the archive path contains characters cron or the shell would\n"
+                  f"misread (allowed: letters, digits, space and . _ / + , : @ ~ -). Delete it by hand\n"
+                  f"after {retain} days, or rerun with a plainer --out.")
+            return 0
+        tag = f"{MARKER}:{archive.name}"
+        line = (f"0 3 * * * find {q(a)} -mtime +{retain} -delete 2>/dev/null; "
+                f"[ -e {q(a)} ] || (crontab -l | grep -vF {q(tag)} | crontab -)"
+                f"  # {tag}")
         print(f"\nDelete this archive after {retain} days (the line removes itself afterwards):\n  {line}")
         if args.install_cron:
             answer = "yes" if args.yes else (input("Install this cron job? [y/N]: ").strip() or "no")

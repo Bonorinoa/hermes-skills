@@ -134,7 +134,8 @@ with tempfile.TemporaryDirectory(prefix="crew-fixture-") as td:
              env=env, cwd=t)
     new = [l for l in tab.read_text().splitlines() if l not in before_rel]
     check("relative --out gives an absolute path in cron",
-          rr.returncode == 0 and len(new) == 1 and f'find "{(t / "relout").resolve()}/' in new[0],
+          rr.returncode == 0 and len(new) == 1
+          and new[0].split("find ", 1)[1].lstrip("'").startswith(str((t / "relout").resolve()) + "/"),
           new[0][:120] if new else rr.stderr[:120])
 
     # ---------- hygiene_scan ----------
@@ -144,9 +145,7 @@ with tempfile.TemporaryDirectory(prefix="crew-fixture-") as td:
     subprocess.run(["git", "init", "-q", str(proj)], check=True)
     (proj / ".gitignore").write_text(".scratch/\noutputs/\n")
     (proj / "tracked_big.bin").write_bytes(b"\0" * (2 * 1024 * 1024))
-    subprocess.run(["git", "-C", str(proj), "add", ".gitignore", "tracked_big.bin"], check=True)
-    subprocess.run(["git", "-C", str(proj), "-c", "user.email=f@f", "-c", "user.name=f",
-                    "commit", "-qm", "x"], check=True)
+    subprocess.run(["git", "-C", str(proj), "add", ".gitignore", "tracked_big.bin"], check=True)  # index counts as tracked
     (proj / "outputs").mkdir(); (proj / "outputs/sim_draws.npy").write_bytes(b"\0" * (3 * 1024 * 1024))
     (proj / ".scratch/card-old/log.txt").write_text("old\n")
     (proj / ".scratch/card-new/log.txt").write_text("new\n")
@@ -164,6 +163,82 @@ with tempfile.TemporaryDirectory(prefix="crew-fixture-") as td:
     check("scan deleted nothing", before == sorted(str(p) for p in proj.rglob("*")))
     check("missing root exits 2", run([SCAN, "--root", t / "nope"]).returncode == 2)
     check("negative ttl exits 2", run([SCAN, "--root", proj, "--ttl-days", "-1"]).returncode == 2)
+
+    # ---------- regressions from the 0.11.0 independent review ----------
+    # R1: '?' in the path must not open a different (empty) database
+    qhome = t / "data?base home" / ".hermes"; qhome.mkdir(parents=True)
+    qc = sqlite3.connect(qhome / "state.db"); qc.execute("PRAGMA journal_mode=WAL")
+    qc.execute("CREATE TABLE important(x)"); qc.execute("INSERT INTO important VALUES (1)"); qc.commit()
+    rq = run([BACKUP, "--hermes-home", qhome, "--out", t / "qout", "--retain", "forever", "--yes"])
+    qc.close()
+    qr = t / "qrestore"; qr.mkdir()
+    with tarfile.open(next((t / "qout").glob("*.tar.gz"))) as tf:
+        tf.extractall(qr, filter="data")
+    rows_q = sqlite3.connect(qr / ".hermes/state.db").execute("SELECT count(*) FROM important").fetchone()[0]
+    check("R1 '?' in path: snapshot keeps the table and row", rq.returncode == 0 and rows_q == 1)
+    check("R1 no stray file created beside the home", not (t / "data").exists())
+
+    # R2: hostile characters: restore commands quoted; no cron line offered
+    for label, name in [("double quote", 'o"q'), ("substitution", "q$(touch SENTINEL)"), ("percent", "p%c")]:
+        od = t / name
+        rh = run([BACKUP, "--hermes-home", home, "--out", od, "--retain", "3", "--install-cron", "--yes"],
+                 env=env, cwd=t)
+        check(f"R2 {label}: exits 0, no cron line installed",
+              rh.returncode == 0 and "No cron line" in rh.stdout
+              and not any(name in l for l in tab.read_text().splitlines()))
+        check(f"R2 {label}: nothing executed", not (t / "SENTINEL").exists())
+    # restore command for a double-quoted path actually works when run
+    dq = t / 'o"q'
+    restore_line = next(l for l in run([BACKUP, "--hermes-home", home, "--out", dq, "--retain", "forever",
+                                        "--yes"]).stdout.splitlines() if l.strip().startswith("tar -xzf"))
+    target = t / 'rq"dir'; target.mkdir()
+    cmd = restore_line.split("#")[0].strip()
+    cmd = cmd[: cmd.rindex(" -C ")] + " -C " + __import__("shlex").quote(str(target))
+    check("R2 quoted restore command runs", subprocess.run(["sh", "-c", cmd]).returncode == 0
+          and (target / ".hermes/config.yaml").exists())
+
+    # R3: cron self-removal is a fixed-string match (dots are not wildcards)
+    tagged_now = [l for l in tab.read_text().splitlines() if "hermes-home-backup:" in l]
+    victim = tagged_now[-1]
+    vname = victim.rsplit("hermes-home-backup:", 1)[1]
+    decoy = "5 5 * * * echo decoy " + "hermes-home-backup:" + vname.replace(".", "X")
+    tab.write_text(tab.read_text() + decoy + "\n")
+    varc = Path(victim.split("find ", 1)[1].split(" -mtime")[0].strip("'"))
+    os.utime(varc, (expired, expired))
+    subprocess.run(["sh", "-c", victim.split(" ", 5)[5]], env=env, timeout=30)
+    check("R3 decoy line with regex-like name survives", decoy in tab.read_text().splitlines()
+          and victim not in tab.read_text().splitlines())
+
+    # R4: an existing out folder readable by others is refused, nothing written
+    pub = t / "public"; pub.mkdir(); pub.chmod(0o755)
+    rp = run([BACKUP, "--hermes-home", home, "--out", pub, "--retain", "forever", "--yes"])
+    check("R4 permissive existing --out refused", rp.returncode == 1 and not any(pub.iterdir()))
+
+    # R5: directory symlinks are archived as links, not dropped or followed
+    shome = t / "shome" / ".hermes"; shome.mkdir(parents=True)
+    (shome / "config.yaml").write_text("x: 1\n")
+    outside = t / "outside"; outside.mkdir(); (outside / "secret.txt").write_text("no\n")
+    (shome / "link_out").symlink_to(outside, target_is_directory=True)
+    (shome / "loop").symlink_to(shome, target_is_directory=True)
+    rs5 = run([BACKUP, "--hermes-home", shome, "--out", t / "sout", "--retain", "forever", "--yes"])
+    with tarfile.open(next((t / "sout").glob("*.tar.gz"))) as tf:
+        m = {x.name: x for x in tf.getmembers()}
+    check("R5 dir symlinks kept as links, targets not copied",
+          rs5.returncode == 0 and m.get(".hermes/link_out") is not None and m[".hermes/link_out"].issym()
+          and m.get(".hermes/loop") is not None and m[".hermes/loop"].issym()
+          and not any("secret.txt" in n for n in m))
+
+    # R6: a fresh nested folder makes old scratch fresh
+    nest = proj / ".scratch/card-old/sub"; nest.mkdir(); os.utime(nest, (old, old))
+    os.utime(proj / ".scratch/card-old", (old, old))
+    (nest / "fresh").mkdir()
+    rs6 = json.loads(run([SCAN, "--root", proj, "--json"]).stdout)["roots"][0]
+    st6 = {Path(s["path"]).name: s["stale"] for s in rs6["scratch"]}
+    check("R6 fresh nested folder makes scratch fresh", st6.get("card-old") is False, str(st6))
+
+    # R7: non-finite numbers are bad arguments (exit 2)
+    for flag, val in [("--ttl-days", "nan"), ("--big-mb", "nan"), ("--big-mb", "inf")]:
+        check(f"R7 {flag} {val} exits 2", run([SCAN, "--root", proj, flag, val]).returncode == 2)
 
 failed = [n for n, ok in results if not ok]
 print(f"\n{len(results) - len(failed)}/{len(results)} passed")

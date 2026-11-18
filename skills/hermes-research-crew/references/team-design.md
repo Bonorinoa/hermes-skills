@@ -148,7 +148,8 @@ Record the S5 answer in the plan. Until it is "yes":
   force): no background dispatcher at all. Set
   `hermes config set kanban.dispatch_in_gateway false` and do not run
   `hermes kanban daemon`. While the user is present, the orchestrator runs
-  `hermes kanban --board <b> dispatch --max 1` to start one ready card at a time.
+  `hermes kanban --board <b> dispatch --max 1`, which starts at most one ready
+  card per pass; run the next pass after that card finishes.
 - **Attended-only profiles in an otherwise unattended team:** create their root
   cards already parked with `hermes kanban --board <b> create "<title>"
   --assignee <p> --initial-status blocked ...`, which leaves no window for the
@@ -164,8 +165,11 @@ park the cards **before** installing or starting the dispatcher, run this check,
 then start it.
 
 **One subscription shared by several desks** hits its usage window fast. Cap
-concurrency: chain cards instead of fanning out, or dispatch with
-`hermes kanban daemon --max 1` instead of gateway dispatch.
+concurrency with `hermes config set kanban.max_in_progress 1` (in the profile
+that dispatches): it limits running cards across all boards. Chaining cards
+(`--parent`) instead of fanning out also helps. `--max` on `dispatch` or
+`daemon` is not a concurrency cap: it limits how many cards start per pass or
+tick, so long cards can still overlap.
 
 Personal subscriptions have terms too: some providers restrict using a consumer
 login through third-party tools. The plan's approval line includes the user's
@@ -186,10 +190,14 @@ large codebase and a paper.
 **B. Institutional seat (terms unconfirmed) plus a personal subscription.**
 Claude seat through the university; personal Codex subscription; $20 budget.
 - Engineer: `openai-codex` (unattended allowed).
-- Verifier: the Claude seat is a second family but attended-only, so checks run
-  while the user is present. For unattended checks, an open-weight route inside
-  the $20.
 - Writer and orchestrator: the Claude seat, interactively.
+- Verifier: always a family other than the artifact's producer, pinned per card
+  with `hermes kanban --board <b> set-model <id> <model> --provider <p>`.
+  Engineer (GPT) artifacts are checked on the Claude seat while the user is
+  present, or unattended on an open-weight route inside the $20. Writer and
+  orchestrator (Claude) artifacts are checked on `openai-codex`. Checking a
+  Claude-written artifact on the Claude seat would be a same-family review and
+  must be labelled so.
 
 **C. API keys only, $100.** Tool-builder.
 - Engineer: a strong open-weight coder, metered.

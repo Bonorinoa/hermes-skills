@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
@@ -27,15 +28,16 @@ SKIP_DIRS = {".git"}
 
 
 def tree_stats(path: Path) -> tuple[int, float]:
-    """Total bytes and newest mtime under path (path itself included)."""
+    """Total bytes and newest mtime under path (path, subfolders and files)."""
     total, newest = 0, path.stat().st_mtime
     for dirpath, dirnames, filenames in os.walk(path):
-        for name in filenames:
+        for name in [*dirnames, *filenames]:
             try:
                 st = os.lstat(os.path.join(dirpath, name))
             except FileNotFoundError:
                 continue
-            total += st.st_size
+            if name in filenames:
+                total += st.st_size
             newest = max(newest, st.st_mtime)
     return total, newest
 
@@ -104,8 +106,8 @@ def main() -> int:
     ap.add_argument("--big-mb", type=float, default=200.0)
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
-    if args.ttl_days < 0 or args.big_mb < 0:
-        ap.error("--ttl-days and --big-mb must be non-negative")
+    if not (math.isfinite(args.ttl_days) and math.isfinite(args.big_mb)) or args.ttl_days < 0 or args.big_mb < 0:
+        ap.error("--ttl-days and --big-mb must be finite, non-negative numbers")
 
     roots = [Path(r).expanduser().resolve() for r in args.root]
     missing = [str(r) for r in roots if not r.is_dir()]

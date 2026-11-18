@@ -89,7 +89,7 @@ Constraints the skill holds, in brief:
 The intake may conclude that a team is not worth it. It checks these in order, and the first match wins:
 
 - **Not yet.** You won't review what the agents produce, or you have no working model access. It explains what would change the answer.
-- **Single profile.** Mostly short tasks, nothing to publish, no restricted data. One well-configured profile beats a team, however many projects you have.
+- **Single profile.** Mostly short tasks done while you are present, nothing to publish, no restricted data. One well-configured profile beats a team, however many projects you have.
 - **Small team.** Short tasks with stakes, only free-tier models, or no account you may run unattended. An orchestrator and a verifier, used while you are present.
 - **Full team.** Everything else. A single project with long, many-step tasks qualifies.
 
