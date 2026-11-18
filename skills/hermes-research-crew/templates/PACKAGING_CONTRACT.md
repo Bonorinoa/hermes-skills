@@ -24,8 +24,17 @@ The contract fixes what must be findable, not file names. Existing spines stay.
 
 ## 3. What lives where
 
-- PM memory and `PROJECTS.md`: a catalogue. Root, spine pointer, phase, locks.
-- Project disk: the record itself.
+- Memory: the person (preferences, standing conventions). Never project state.
+- `PROJECTS.md`: a catalogue, one row per project. Root, spine pointer, phase, locks.
+- Project disk: the record itself (status, decisions, artifacts).
+- Kanban board: work in flight. A card's summary is a self-report, not the record.
+
+## 3a. Scratch and cleanup
+
+Temporary output goes under `<Root>/.scratch/<card-id>/` (git-ignored). What a
+card must keep is named in its Artifact field. The hygiene desk, or the user,
+clears stale scratch after keeping each run's small text evidence; pinned,
+frozen, raw and licensed data are never cleaned.
 
 ## 4. Cards
 
@@ -44,11 +53,11 @@ All four must hold:
 
 Claimed work without a path is not work.
 
-## 6. The checker gate
+## 6. The verifier gate
 
-The checker runs on a different model family from the producer. It sees the
+The verifier runs on a different model family from the producer. It sees the
 artifact and the acceptance criterion, not the producer's rationale. It may block,
-citing evidence. The PM gets two rounds to fix or rebut; a surviving block goes to
+citing evidence. The orchestrator gets two rounds to fix or rebut; a surviving block goes to
 <user> with both positions and the artifact.
 
 ## 7. Project locks

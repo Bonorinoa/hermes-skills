@@ -46,7 +46,7 @@ portfolio file keeps theirs.
 | "Provider X is serving again after the rebuild (probe, today)" | the status file | a dated observation, not a standing fact |
 | "OpenRouter credits exhausted, recharged" | nowhere; it is gone | an event with no future use |
 | "Use `env -u PYTHONPATH` for project Python" | a skill's pitfalls | a procedure that changes how the task runs |
-| "The checker accepted card 47" | the board | an attempt, not portfolio state |
+| "The verifier accepted card 47" | the board | an attempt, not portfolio state |
 | "User prefers control over convenience unless quality differs a lot" | memory | durable and task-independent |
 | "User's name, timezone, and that the institutional seat is attended-only" | memory | standing facts every session needs |
 
@@ -77,17 +77,17 @@ before writing it into the repository.
 
 | File | From | Purpose |
 |---|---|---|
-| `PROJECTS.md` | `templates/PROJECTS.md` | The PM's card catalogue. About five lines per project: root, spine, phase, locks. Longer means the registry is becoming the record. |
-| `PACKAGING_CONTRACT.md` | `templates/PACKAGING_CONTRACT.md` | The wipe test, the card fields, the acceptance rule, the checker gate. |
+| `PROJECTS.md` | `templates/PROJECTS.md` | The orchestrator's card catalogue. About five lines per project: root, spine, phase, locks. Longer means the registry is becoming the record. |
+| `PACKAGING_CONTRACT.md` | `templates/PACKAGING_CONTRACT.md` | The wipe test, the card fields, the acceptance rule, the verifier gate. |
 | `PROFILES.md` | `templates/PROFILES.md`, filled from the approved plan | Who runs what, each route, attended-only flags, how to send each desk work. |
 
-Specialists cannot see the PM's memory or its `hermes project` entries (project
+Specialists cannot see the orchestrator's memory or its `hermes project` entries (project
 state is per-profile). These files are how they find anything.
 
 ## Registering a project
 
 ```bash
-hermes project create <name> <abs-root>               # in the PM profile
+hermes project create <name> <abs-root>               # in the orchestrator profile
 hermes kanban boards create <slug> --default-workdir <abs-root>
 ```
 
@@ -96,14 +96,14 @@ One board per project keeps unrelated work in separate queues. Read
 
 ## The five-field card
 
-Every card the PM writes carries five fields. A card missing one is rewritten,
+Every card the orchestrator writes carries five fields. A card missing one is rewritten,
 not dispatched.
 
 | Field | Why |
 |---|---|
 | **Root** | Absolute path. Workers know nothing; "the project" means nothing to them. |
 | **Acceptance** | What done means, checkably: "`pytest tests/test_x.py` exits 0", not "improve the tests". |
-| **Artifact** | The exact path the work must produce, which the checker will inspect. |
+| **Artifact** | The exact path the work must produce, which the verifier will inspect. |
 | **Fence** | What must not be touched. Scope creep is silent otherwise. |
 | **Locks** | Project rules that override convenience (below). |
 
@@ -129,20 +129,20 @@ Work is accepted only when all four hold:
    `pytest | tail` returns `tail`'s status.
 4. The model route that produced it is recorded, from `agent.log`.
 
-## The checker gate
+## The verifier gate
 
 ```text
-builder -> artifact + evidence -> CHECKER (other family; sees artifact + acceptance, not the builder's rationale)
+engineer -> artifact + evidence -> VERIFIER (other family; sees artifact + acceptance, not the engineer's rationale)
                                     |-- accept -> done
-                                    `-- block  -> PM round 1 (fix or rebut) -> checker -> PM round 2 -> still blocked? -> user
+                                    `-- block  -> orchestrator round 1 (fix or rebut) -> verifier -> orchestrator round 2 -> still blocked? -> user
 ```
 
 - A block must cite evidence: a path, a command with its exit code, a count that
   does not match. "This looks wrong" is not a block.
-- The PM gets two rounds to fix or rebut. A block that survives goes to the user
+- The orchestrator gets two rounds to fix or rebut. A block that survives goes to the user
   with both positions and the artifact.
-- The checker never edits the artifact.
-- When the checker refutes the PM, check its file:line evidence. If it holds,
+- The verifier never edits the artifact.
+- When the verifier refutes the orchestrator, check its file:line evidence. If it holds,
   concede in writing.
 
 ## Locks for research projects

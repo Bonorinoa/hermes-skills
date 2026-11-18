@@ -1,19 +1,19 @@
 # hermes-skills
 
-Skills for [Hermes Agent](https://hermes-agent.nousresearch.com), written for researchers who build tools and run several projects at once.
+Skills for [Hermes Agent](https://hermes-agent.nousresearch.com), each curated for one specific workflow. Written for researchers who build tools.
 
-This is one repository for many skills. Each skill lives in its own folder under `skills/`. More may be added later.
+This is one repository for many skills. Each skill lives in its own folder under `skills/`, named for the workflow it sets up. More will be added.
 
 ## Skills in this repo
 
 | Skill | Version | What it does |
 |---|---|---|
-| [the-three-musketeers](skills/the-three-musketeers/) | 0.10.0 (pre-release) | Set up a Hermes agent team for research projects. |
+| [hermes-research-crew](skills/hermes-research-crew/) | 0.11.0 (pre-release) | Set up a Hermes agent team for research projects. |
 
 ## Install
 
 ```
-hermes skills install Bonorinoa/hermes-skills/the-three-musketeers
+hermes skills install Bonorinoa/hermes-skills/hermes-research-crew
 ```
 
 This installs the skill with its references, templates, and scripts, after Hermes runs its security scan. To see every skill in this repository, browse the [`skills/`](skills/) folder.
@@ -23,7 +23,7 @@ This installs the skill with its references, templates, and scripts, after Herme
 In a Hermes chat, say:
 
 ```
-Set up the-three-musketeers
+Set up hermes-research-crew
 ```
 
 The agent starts an intake. It changes nothing until you approve a written plan. If you are cleaning up an existing install, it inventories your install read-only during planning; every write, including the backups, happens after approval, and destructive steps each get a separate yes.
@@ -38,16 +38,19 @@ python3 scripts/check_repo.py     # the Hermes runtime python has PyYAML
 
 It runs on every push and pull request in `.github/workflows/check.yml`.
 
-## What the-three-musketeers does
+## What hermes-research-crew does
 
-It is for researchers, PhD students, and scientists who build tools and juggle several projects, often with flat-rate or institutional (EDU) model access rather than pay-per-token budgets.
+It is for researchers, PhD students, and scientists who build tools and whose work includes long or many-step tasks: refactors, pipelines, long analyses, simulations. Model access can be subscriptions, institutional (EDU) seats, pay-per-token open-weight models, local models, or a mix.
 
 It sets up:
 
-- one project manager, d'Artagnan, which is the `default` profile;
-- three specialists: a builder (Athos, `engineer`), a checker (Porthos, `verifier`), and a voice (Aramis, `writer` or `creative`);
+- an **orchestrator**, d'Artagnan: your usual Hermes agent (the `default` profile), which plans with you and routes work;
+- three core specialists: an **engineer** (Athos), a **verifier** on a different model family (Porthos), and a **writer** (Aramis);
+- two optional desks: **creative** (Bazin) for figures, slides and interfaces, and **hygiene** (Planchet), which clears run residue without destroying evidence;
 - one Kanban board per project;
 - project truth kept on disk, not in an agent's memory. The check is the "wipe test": can an agent with no memory rebuild the project's state from its files?
+
+Why these desks, why this number, and how each one is built: [`references/architecture.md`](skills/hermes-research-crew/references/architecture.md).
 
 It also fixes where a fact goes, which is the part most setups get wrong:
 
@@ -62,7 +65,7 @@ The board holds work in flight and the transcript holds conversation; neither is
 
 How the intake works:
 
-1. You say "Set up the-three-musketeers".
+1. You say "Set up hermes-research-crew".
 2. The agent probes your install. This step is read-only.
 3. It asks short multiple-choice questions, in up to three rounds.
 4. It gives a fit verdict: Not yet, Single profile, Small team, or Full team.
@@ -73,7 +76,7 @@ The skill is model-agnostic. It carries the constraints, and the intake picks th
 
 Constraints the skill holds, in brief:
 
-- The checker runs on a different model family from the producers. When your access allows no second family, the plan says so plainly and calls it a same-family review.
+- The verifier runs on a different model family from the producers. When your access allows no second family, the plan says so plainly and calls it a same-family review.
 - No free-tier fallback on profiles that work cards.
 - Institutional seats stay attended-only until you confirm that automation is allowed.
 - Published results get a reproducibility lock.
@@ -86,15 +89,15 @@ Constraints the skill holds, in brief:
 The intake may conclude that a team is not worth it. It checks these in order, and the first match wins:
 
 - **Not yet.** You won't review what the agents produce, or you have no working model access. It explains what would change the answer.
-- **Single profile.** One project, nothing to publish, no restricted data. One well-configured profile beats a team.
-- **Small team.** One project with stakes, only free-tier models, or no account you may run unattended. A manager and a checker, used while you are present.
-- **Full team.** Everything else.
+- **Single profile.** Mostly short tasks, nothing to publish, no restricted data. One well-configured profile beats a team, however many projects you have.
+- **Small team.** Short tasks with stakes, only free-tier models, or no account you may run unattended. An orchestrator and a verifier, used while you are present.
+- **Full team.** Everything else. A single project with long, many-step tasks qualifies.
 
 The agent gives the verdict with its reason. You can override it, but some limits hold regardless: nothing runs unattended on free-tier models, on a seat you haven't confirmed may be automated, or for someone who won't review the results. If you agree that a team is not worth it, the intake can end there.
 
 ## What it costs
 
-The skill itself is free. The team runs on whatever model access you have. Pay-per-token routes cost money, so set a spend cap at the provider.
+The skill itself is free. The team runs on whatever model access you have, and the skill does not assume premium subscriptions are needed: it matches each desk to the capability it needs and shows how to compare models on your own past tasks (cost and your time per accepted result). Pay-per-token routes cost money, so set a spend cap at the provider.
 
 ## Terms
 
@@ -104,17 +107,20 @@ The skill asks about this and defaults to attended-only when unsure. It never in
 
 ## Safety and scripts
 
-The skill includes three scripts.
+The skill includes four scripts. None of them deletes project files.
 
 - `scripts/prove_routes.py` sends each profile one short probe message (one model call per profile), using the `hermes` CLI as a subprocess. It then checks that profile's `agent.log` to confirm the profile answered on its configured provider and model, with no silent fallback.
 - `scripts/verify_config_sweep.py` reads config back and diffs it against a pre-change snapshot. Values under secret-looking keys are never printed.
-- `scripts/insurance_backup.sh` archives the whole Hermes home before a migration, prints the restore command, and can install a cron job that auto-deletes the archive after a chosen number of days. It is plain `bash` and `tar`; it makes no model calls.
+- `scripts/insurance_backup.py` archives the Hermes home before a migration: databases are snapshotted consistently, the archive is owner-only, and it prints the restore command. With a retention of N days it can install a cron line that deletes that one archive and then removes itself. It restores the Hermes home only; other changes are undone with the plan's checklist. Standard library only; no model calls.
+- `scripts/hygiene_scan.py` is read-only: it lists stale scratch folders, large untracked files and prunable worktrees in your project roots, for the hygiene desk or for you to decide on.
 
-The Hermes security scan of the skill returned the verdict SAFE. Its MEDIUM findings are calls to `hermes` via subprocess, and documentation that mentions `uv run` and `pip install pyyaml`.
+The Hermes security scan of version 0.11.0 returned the verdict SAFE (no high findings). Its MEDIUM findings are calls to `hermes` and `git` via subprocess, the optional cron line in the backup script, and documentation that mentions `uv run` and `pip install pyyaml`.
 
 ## Status
 
-Version 0.9.0 is pre-release. It has been tested with simulated users, not yet with real ones.
+Version 0.11.0 is pre-release. It has been tested with simulated users, not yet with real ones.
+
+Renamed in 0.11.0: this skill was `the-three-musketeers` up to 0.10.0. If you installed it under that name, uninstall it (`hermes skills uninstall the-three-musketeers`) and install `hermes-research-crew`.
 
 To give feedback, open a GitHub issue on this repository.
 

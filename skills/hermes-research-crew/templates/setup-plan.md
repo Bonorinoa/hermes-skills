@@ -34,14 +34,19 @@ because <reason>. User override, if any: <...>. Hard limits that still apply: <.
 
 ## 3. Roster
 
-| Profile | Role | Primary route (provider / exact model id, family) | Fallback | Dispatch | max_turns | Why |
+| Profile | Role (persona) | Primary route (provider / exact model id, family) | Fallback | Dispatch | max_turns | Why |
 |---|---|---|---|---|---|---|
-| default | PM (d'Artagnan) | | | interactive | 60 | |
-| engineer | builder (Athos) | | none | unattended / attended-only | 75 | |
-| verifier | checker (Porthos) | | | unattended / attended-only | 100 | |
-| writer or creative | voice (Aramis) | | none | unattended / attended-only | 60 | |
+| default | orchestrator (d'Artagnan) | | | interactive | 60 | |
+| engineer | engineer (Athos) | | none | unattended / attended-only | 75 | |
+| verifier | verifier (Porthos) | | | unattended / attended-only | 100 | |
+| writer | writer (Aramis) | | none | unattended / attended-only | 60 | |
+| creative | creative (Bazin), optional | | none | unattended / attended-only | 60 | |
+| hygiene | hygiene (Planchet), optional | | none | unattended / attended-only | 40 | |
 
-**Independence:** checker family = <...>; producer families (PM included) = <...>.
+Delete the optional rows the user did not ask for.
+**Review topology:** <same-card review | downstream verifier cards> (`running-the-board.md`).
+
+**Independence:** verifier family = <...>; producer families (orchestrator included) = <...>.
 <Independent | Weak check (small local model, must catch the planted error) | Same-family review, accepted because ...>
 
 Single profile: keep only the `default` row. Model ids are `UNVERIFIED` at
@@ -69,7 +74,7 @@ Insurance archive first, then snapshot, both after approval
 - Dispatcher: <gateway (installed as a service: a persistent change) / kanban daemon / none>.
 - Concurrency: <cap, if desks share one subscription>.
 - Overnight: <always-on machine / laptop awake, lid open, plugged in>.
-- Attended-only cards are created parked and released by the PM when you are present.
+- Attended-only cards are created parked and released by the orchestrator when you are present.
 
 ## 8. What will be written, and what will not
 
@@ -82,9 +87,10 @@ dispatch to attended-only seats, <anything else the user excluded>.
 
 ## 9. Insurance and rollback
 
-Insurance archive: `bash scripts/insurance_backup.sh --out <dir>` — retention:
-<forever | auto-delete after N days, cron installed: yes/no>; restore:
-<the command from its output>.
+Insurance archive: `"$HERMES_PY" scripts/insurance_backup.py --out <dir> --retain <forever|N>`
+— retention: <forever | delete after N days, cron installed: yes/no>; restore:
+<the command from its output>. It restores the Hermes home only; the checklist
+below undoes everything else.
 
 Config snapshots at <path>. Undo checklist:
 - profiles created: <list> -> `hermes profile delete <name>`

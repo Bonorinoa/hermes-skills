@@ -36,12 +36,14 @@ the insurance choice, and the undo checklist. Approve the plan before any write.
    answered up front):
 
    ```bash
-   bash scripts/insurance_backup.sh --out ~/hermes-backups --retain <forever|N>
+   "$HERMES_PY" scripts/insurance_backup.py --out ~/hermes-backups --retain <forever|N>
    ```
 
-   The script asks keep-forever vs auto-delete after N days (a cron job; offer
-   `--install-cron`), prints the restore command, and the archive contains
-   credentials — local only, never uploaded.
+   With N days it prints a cron line that deletes this one archive after N days
+   (offer `--install-cron`; it asks before installing). It snapshots databases
+   consistently, writes the archive owner-only, and prints the restore command.
+   The archive contains credentials: local only, never uploaded. It restores the
+   Hermes home only; step 6's checklist undoes the rest.
 
 2. **Config snapshot** (the fine-grained diff for the sweep, after the archive):
 

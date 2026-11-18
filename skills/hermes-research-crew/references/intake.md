@@ -59,15 +59,15 @@ permission come from the user (S3, S5).
 | ID | Slot | Decides | Probe? |
 |---|---|---|---|
 | S1 | Goal: fresh start, consolidate an existing install, add a team to a working install, or just evaluating | branch | partly (profile count) |
-| S2 | Work shape: active projects per month; kinds of work (analysis code, tools, writing, design, data) | fit, roster | no |
+| S2 | Work shape: how long and how many steps the heaviest regular tasks take; kinds of work (analysis code, tools, writing, design, data, simulations); number of active projects (decides boards, not fit) | fit, roster | no |
 | S3 | Model access: each provider's family and billing type (personal subscription, institutional seat, metered with credit, local, free tier) | routes, independence | partly |
 | S4 | Monthly metered budget | metered routes, paid fallbacks | no |
 | S5 | Which provider is an institutional seat, and does the institution permit agent automation on it? | unattended dispatch | **never infer** |
 | S6 | Publication stakes, and licensed / restricted / human-subjects data | locks, data handling | no |
 | S7 | Review habit: reviews results, approves each card, or will not review | fit, dispatch | no |
-| S8 | Desks: builder, checker, voice (prose or design), data | roster | no |
+| S8 | Desks beyond the core (orchestrator, engineer, verifier, writer): creative (figures, slides, design), hygiene (cleanup after unattended runs) | roster | no |
 | S9 | Workspace: where projects live; projects without a remote | registry, backup | partly |
-| S10 | Platform: OS, laptop or always-on machine, local GPU/RAM, notification channel | overnight runs, local checker | partly |
+| S10 | Platform: OS, laptop or always-on machine, local GPU/RAM, notification channel | overnight runs, local verifier | partly |
 | S11 | Existing per-project records: does each project already have a status file and a decision log, and what are they called | spine pointers; whether a spine is proposed at all | partly (look for `README`, `AGENTS.md`, `STATUS.md`, a decisions folder) |
 
 ## Round 1: is it worth it? (S1, S2, S6, S7)
@@ -77,8 +77,10 @@ permission come from the user (S3, S5).
   {"question": "What do you want from this setup?",
    "choices": ["Start fresh: a small agent team for my projects", "Clean up a Hermes install I already have",
                "Add a team to a setup that already works", "Just tell me whether it's worth it"]},
-  {"question": "How many projects do you actively work on in a typical month?",
-   "choices": ["2-4", "5 or more", "1"]},
+  {"question": "What does your heaviest regular task look like?",
+   "choices": ["Long or many-step work: refactors, pipelines, long analyses or simulations",
+               "A steady stream of medium tasks across several projects",
+               "Mostly short questions and quick edits"]},
   {"question": "What do you need agents to do?", "multi_select": true,
    "choices": ["Analysis code and scripts", "Build tools or software", "Write papers or docs", "Figures, slides, design"]},
   {"question": "Does any project involve the following?", "multi_select": true,
@@ -98,7 +100,7 @@ How the last answer maps:
 - "Routine tasks alone": routine cards run unattended; every other card is
   created parked. A routine task is checked mechanically (tests pass, a file
   builds) and touches no published result and no restricted data.
-- "I don't want to review anything" means the user will not read checker blocks
+- "I don't want to review anything" means the user will not read verifier blocks
   or a morning queue. That is verdict row 1. Agreeing to read the queue, even
   briefly, changes it.
 
@@ -120,9 +122,12 @@ two or three plain sentences with the reason.
 | # | Verdict | When | What to offer |
 |---|---|---|---|
 | 1 | **Not yet** | The user will not review output, or has no usable model access | Explain what would change the answer (agreeing to review blocks; one working route). Offer a single attended profile meanwhile. |
-| 2 | **Single profile** | 1 project, no publication stakes, no restricted data | One profile, attended, with good skills. Use the short plan form. |
-| 3 | **Small team** | 1 project with stakes; or only free-tier models; or no route may run unattended | PM + checker in attended mode: the PM (with the user) does the work, and checks run only while the user is present. |
-| 4 | **Full team** | Everything else: 2+ projects, at least one route allowed to run unattended | PM + builder + checker + voice. If the checker's only route is attended-only, say "Full team, attended checks": builders run unattended, checks wait for the user. |
+| 2 | **Single profile** | Work is mostly short, attended tasks (one sitting, few steps), with no publication stakes and no restricted data, however many projects there are | One profile, attended, with good skills. Use the short plan form. |
+| 3 | **Small team** | Short tasks with stakes (publication or restricted data); or only free-tier models; or no route may run unattended | Orchestrator + verifier in attended mode: the orchestrator (with the user) does the work, and checks run only while the user is present. |
+| 4 | **Full team** | Everything else: long or many-step tasks, or a steady queue of medium ones, with at least one route allowed to run unattended | Orchestrator + engineer + verifier + writer, plus creative or hygiene if S8 asks for them. A single complex project qualifies. If the verifier's only route is attended-only, say "Full team, attended checks": producers run unattended, checks wait for the user. |
+
+The number of projects decides how many boards to create, not whether a team
+pays off. One hard project with long tasks benefits more than five easy ones.
 
 After round 1 the verdict is provisional; round 2 can move it down the table,
 never up past row 1 or 2 conditions. Local models count as able to run cards
@@ -187,26 +192,31 @@ Drop the second question when the answer to the first is "None of them".
 
 ## Round 3: working style (only unknowns among S8, S9, S10)
 
-- Voice desk: mostly prose (`writer`) or mostly figures and slides (`creative`)?
-- Where do projects live? (open question) Do any lack a git remote?
+- How many active projects are there, and where do they live? (open question)
+  Do any lack a git remote? The count decides the number of boards.
+- Creative desk: are figures, slides, or interfaces a regular product? (yes adds
+  `creative`; otherwise the writer takes occasional figures.)
+- Hygiene desk: will cards, simulations, or statistical runs happen while you
+  are away? (yes adds `hygiene`; otherwise run `scripts/hygiene_scan.py` by
+  hand now and then.)
 - Existing records (S11): "Do your projects already keep a status file or a
   decision log?" List the candidates the probe found as choices, with "None of
   them" last. Record what they are called; the plan reuses them by name and
   never renames a file inside a repository.
 - Will tasks run overnight on a laptop, or on a machine that stays on?
 - A notification channel (for example Telegram) for blocked tasks?
-- Enough local GPU/RAM for an open-weight checker? (Only if S3 lacks a second family.)
+- Enough local GPU/RAM for an open-weight verifier? (Only if S3 lacks a second family.)
 
 ## Writing the plan
 
 1. Fill `templates/setup-plan.md` with `team-design.md`. For Single profile or
    Small team use the short form.
 2. Show the whole plan, starting with its plain-language summary.
-3. Ask the insurance question: keep the full backup archive forever, or
-   auto-delete after N days (default 14, a cron job the PM may install)? The
-   answer goes in plan section 9.
+3. Ask the insurance question: keep the backup archive forever, or delete it
+   after N days (default 14, through a cron line the orchestrator may install)?
+   The answer goes in plan section 9.
 4. Ask one question: **Approve**, **Change something**, or **Stop**.
+5. Build only on Approve. On Change, edit and ask again.
 
 The `hermes model` picker is not part of planning: selecting a model writes
 config, so ids are written `UNVERIFIED` in the plan and chosen after approval.
-4. Build only on Approve. On Change, edit and ask again.
