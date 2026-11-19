@@ -8,7 +8,7 @@ This is one repository for many skills. Each skill lives in its own folder under
 
 | Skill | Version | What it does |
 |---|---|---|
-| [hermes-research-crew](skills/hermes-research-crew/) | 0.11.0 (pre-release) | Set up a Hermes agent team for research projects. |
+| [hermes-research-crew](skills/hermes-research-crew/) | 0.12.0 (pre-release) | Set up a Hermes agent team for research projects. |
 
 ## Install
 
@@ -118,7 +118,7 @@ The Hermes security scan of version 0.11.0 returned the verdict SAFE (no high fi
 
 ## Status
 
-Version 0.11.0 is pre-release. It has been tested with simulated users, not yet with real ones.
+Version 0.12.0 is pre-release. It has been tested with simulated users, not yet with real ones.
 
 Renamed in 0.11.0: this skill was `the-three-musketeers` up to 0.10.0. If you installed it under that name, uninstall it (`hermes skills uninstall the-three-musketeers`) and install `hermes-research-crew`.
 

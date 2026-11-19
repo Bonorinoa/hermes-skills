@@ -145,6 +145,20 @@ engineer -> artifact + evidence -> VERIFIER (other family; sees artifact + accep
 - When the verifier refutes the orchestrator, check its file:line evidence. If it holds,
   concede in writing.
 
+### Transcription work: two kinds of check
+
+When a card turns scans, tables, or archives into numbers, write two separate
+acceptance criteria on the existing verifier desk (not a new desk):
+
+- **Transcription check:** were the right values read (units, currency, column, page)?
+- **Code check:** does the script compute the right thing on that data?
+
+A transcribed value enters as a candidate. It becomes final only when a second
+independent pass agrees: a different model family, or a human against the scan.
+Read `agent.log` on every transcription card, not a sample, because a silent
+mid-card fallback produces fluent wrong values. Why: one pass that reads a scan
+wrong passes every downstream code check.
+
 ## Locks for research projects
 
 Offer these during planning; the user picks and edits them per project.
@@ -156,3 +170,33 @@ Offer these during planning; the user picks and edits them per project.
 | No push, tag, release, or publish without a task-specific decision from the user. | Every project |
 | Never loosen a threshold or drop observations to obtain a result. | Empirical work |
 | Tagged releases and frozen inputs are immovable. | Projects with released versions or frozen data |
+
+### Specification lock
+
+The reproducibility lock pins the pipeline. For a project that estimates
+anything, also freeze the specification before estimation: the list of moments,
+targets, thresholds, or model variants. Record it with a hash and date in the
+decision log. An amendment needs its own card and a decision-log entry, and
+results that follow it are labelled post hoc. Why: agents generate
+specifications cheaply, so without a frozen list the team searches over them
+without meaning to.
+
+### Rival card (sycophancy guard)
+
+When a project has a thesis the owner already holds, give each module or
+headline claim a standing rival card. Its acceptance criterion is a working
+argument for the strongest rival mechanism or the closest prior work.
+
+- Write the rival card before the producer's result is accepted. The writer must
+  cite it or answer it.
+- The orchestrator counts as a producer here, because it is the agent talking
+  with the owner.
+- A novelty claim such as "nobody has done X" is a claim, whether it comes from
+  the orchestrator or from an outside chat model the owner pastes in. It enters
+  the spine only after a prior-art search card returns the closest prior work or
+  an explicit "not found".
+- Reserve at least one hypothesis the team expects to lose.
+
+Why: a verifier on a different model family checks artifacts, not whether the
+team has drifted toward the owner's thesis, and a flattering novelty claim is
+the cheapest error to make and the most expensive to retract.

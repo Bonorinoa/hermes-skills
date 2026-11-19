@@ -1,7 +1,7 @@
 ---
 name: hermes-research-crew
 description: "Set up a Hermes agent team for research projects."
-version: 0.11.0
+version: 0.12.0
 author: Augusto González-Bonorino and Claude (Anthropic)
 license: MIT
 metadata:
@@ -258,6 +258,9 @@ PyYAML.
   it) and re-check two or three load-bearing claims before relaying.
 - **After switching a profile's provider, read back `model.base_url` and
   `model.api_mode`.** A leftover endpoint sends the new model to the old host.
+- **A thesis the owner already holds pulls the team toward it, the orchestrator
+  included.** Give each headline claim a standing rival card and check novelty
+  claims by search first (`references/projects-and-cards.md`, research locks).
 - **A profile whose terminal runs in a container cannot see host paths.** Route
   host-path cards to a profile with a local terminal.
 
