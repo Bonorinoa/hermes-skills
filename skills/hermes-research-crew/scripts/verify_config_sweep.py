@@ -36,7 +36,7 @@ from pathlib import Path
 
 # Lines or keys matching this are never printed, only counted.
 SENSITIVE = re.compile(r"key|token|secret|passw|credential|auth|cookie|bearer", re.I)
-LINE_KEY = re.compile(r"^\s*-?\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*:")
+LINE_KEY = re.compile(r"^\s*-?\s*[\"']?([A-Za-z_][A-Za-z0-9_.-]*)[\"']?\s*:")
 ABSENT = "<ABSENT>"
 
 # Portable defaults only: no provider or model ids. Dotted key -> expected value.
@@ -54,12 +54,44 @@ EXPECT: dict[str, object] = {
 
 
 def shown(key: str, value) -> str:
-    """Printable form of a value: redacted when the key looks secret."""
+    """Printable form of a value: redacted when the key, or any key inside it, looks secret."""
     if value == ABSENT:
         return value
-    if SENSITIVE.search(key):
+    text = json.dumps(value)
+    if SENSITIVE.search(key) or (isinstance(value, (dict, list)) and SENSITIVE.search(text)):
         return "<redacted>"
-    return json.dumps(value)[:40]
+    return text[:40]
+
+
+def secret_lines(text: str) -> list[bool]:
+    """Per line: True when the line sits under a secret-looking key at any depth.
+
+    Tracks the YAML key path by indentation, so a block scalar, a nested map or a
+    list under `api_key:`, `auth:` or `credentials:` is secret even on lines that
+    do not name the key themselves. Errs toward redacting.
+    """
+    flags: list[bool] = []
+    stack: list[tuple[int, bool]] = []  # (indent, secret) of the open keys
+    for line in text.splitlines():
+        body = line.strip()
+        if not body or body.startswith("#"):
+            flags.append(any(s for _, s in stack))
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        # A list item may sit at its parent key's indent ("auth:\n- value").
+        item = body.startswith("-")
+        inherited = any(s for i, s in stack if i < indent or (item and i == indent))
+        m = LINE_KEY.match(line)
+        if m and not inherited:
+            while stack and stack[-1][0] >= indent:
+                stack.pop()
+            secret = bool(SENSITIVE.search(m.group(1)))
+            stack.append((indent, secret))
+            flags.append(secret or bool(SENSITIVE.search(line)))
+        else:
+            # a value line (block scalar, list item) or anything below a secret key
+            flags.append(inherited or bool(SENSITIVE.search(line)))
+    return flags
 
 
 def profile_home(home: Path, profile: str) -> Path:
@@ -100,6 +132,8 @@ def parse_expect(items: list[str]) -> dict[str, object]:
 
 
 def same(got, want) -> bool:
+    if isinstance(got, bool) != isinstance(want, bool):
+        return False
     numbers = (int, float)
     if isinstance(got, numbers) and isinstance(want, numbers) \
             and not isinstance(got, bool) and not isinstance(want, bool):
@@ -107,9 +141,17 @@ def same(got, want) -> bool:
     return got == want
 
 
-def changed_lines(before: str, after: str) -> list[str]:
-    diff = difflib.unified_diff(before.splitlines(), after.splitlines(), lineterm="", n=0)
-    return [l for l in diff if l[:1] in "+-" and not l.startswith(("+++", "---"))]
+def changed_lines(before: str, after: str) -> list[tuple[str, str, bool]]:
+    """(sign, line, secret) for every removed or added line."""
+    old, new = before.splitlines(), after.splitlines()
+    old_secret, new_secret = secret_lines(before), secret_lines(after)
+    out: list[tuple[str, str, bool]] = []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(a=old, b=new, autojunk=False).get_opcodes():
+        if tag == "equal":
+            continue
+        out += [("-", old[i], old_secret[i]) for i in range(i1, i2)]
+        out += [("+", new[j], new_secret[j]) for j in range(j1, j2)]
+    return out
 
 
 def main() -> int:
@@ -168,12 +210,11 @@ def main() -> int:
                 lines = changed_lines(backup.read_text(encoding="utf-8"), cfg.read_text(encoding="utf-8"))
                 outside = 0
                 print(f"   drift: {len(lines)} changed line(s)")
-                for line in lines:
-                    m = LINE_KEY.match(line[1:])
-                    if not (m and m.group(1) in leaf_names):
+                for sign, line, secret in lines:
+                    m = LINE_KEY.match(line)
+                    if secret or not (m and m.group(1) in leaf_names):
                         outside += 1
-                    body = "<redacted line>" if SENSITIVE.search(line) else line[1:][:90]
-                    print(f"     {line[0]} {body}")
+                    print(f"     {sign} {'<redacted line>' if secret else line[:90]}")
                 if outside:
                     outside_total += outside
                     print(f"   note: {outside} changed line(s) outside the expected keys "

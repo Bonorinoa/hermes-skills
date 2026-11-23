@@ -64,6 +64,8 @@ Hermes replaces `${HERMES_SKILL_DIR}` in this file with the absolute skill direc
 
    `python3 ${HERMES_SKILL_DIR}/scripts/verify_config_sweep.py --backup-dir <dir>`
 
+   **Restore drill, before the first card.** Prove the archive restores instead of assuming it: extract it into a new empty folder (`tar -xzf <archive> -C <empty-dir>`), confirm the home folder inside it holds `config.yaml`, `state.db` and each `profiles/<name>/`, then delete the extracted copy with `rm -P -r <empty-dir>` (`shred` on Linux), because it holds credentials. Tell the user the result. The archive is a safety net for the Hermes home only; boards, services and remote changes are undone with the plan's checklist.
+
 7. **First card.** One small real card, engineer then verifier. Load `references/running-the-board.md` for that step only.
 
 Profile names are `default`, `engineer`, `verifier`, `writer`, `creative`, `hygiene`. The musketeer names are optional labels, off unless the user asks.

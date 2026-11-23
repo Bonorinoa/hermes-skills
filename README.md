@@ -119,7 +119,7 @@ The skill asks about this and defaults to attended-only when unsure. It never in
 
 ## Safety and scripts
 
-The skill includes six scripts. None of them deletes project files, reads a credential, or needs a package install.
+The skill includes six scripts. None of them deletes project files or needs a package install. Only the insurance backup touches credentials: it copies the whole Hermes home, `.env` and `auth.json` included, into an owner-only archive on your machine. No script prints a credential.
 
 - `scripts/probe_install.py` is read-only: a short install snapshot (Hermes version, provider names, profiles, tools). It never prints account labels.
 - `scripts/probe_free_routes.py` lists free model ids from a live catalog, then probes chosen ids through a Hermes one-shot (one or two model calls each) and reads the answering route from `agent.log`. Hermes supplies the credential; the script never reads one.

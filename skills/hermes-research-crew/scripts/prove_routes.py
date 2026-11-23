@@ -30,7 +30,10 @@ from pathlib import Path
 
 HOME = Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
 PROBE = "Reply with exactly seat-ok and no other words."
-SID = re.compile(r"\b(\d{8}_\d{6}_[0-9a-f]{6}|local-[0-9a-f]{16,})\b")  # older and current Hermes ids
+ID = r"\d{8}_\d{6}_[0-9a-f]{6}|local-[0-9a-f]{16,}"  # older and current Hermes session ids
+SID = re.compile(r"\b(" + ID + r")\b")
+LOGGED_SID = re.compile(r"\[(" + ID + r")\]")
+PRINTED_SID = re.compile(r"^session_id:\s*(" + ID + r")\s*$", re.M)
 CALL = re.compile(r"API call #\d+: model=(\S+) provider=(\S+)")
 FALLBACK = re.compile(r"Fallback (to|activated)")
 
@@ -70,9 +73,9 @@ def probe(profile: str, timeout: int) -> dict:
             ["hermes", "-p", profile, "chat", "-q", PROBE, "-Q", "--max-turns", "1"],
             capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL,
         )
-        out, rc = (r.stdout or "") + (r.stderr or ""), r.returncode
+        out, err, rc = r.stdout or "", r.stderr or "", r.returncode
     except subprocess.TimeoutExpired:
-        out, rc = "", "timeout"
+        out, err, rc = "", "", "timeout"
     time.sleep(1.0)  # let the log flush
 
     new = ""
@@ -82,8 +85,10 @@ def probe(profile: str, timeout: int) -> dict:
             new = f.read()
     lines = new.splitlines()
 
-    call_sids = {SID.search(l).group(1) for l in lines if CALL.search(l) and SID.search(l)}
-    printed = {m.group(1) for m in SID.finditer(out)}
+    # The logger's session field is the bracketed id; Hermes prints the id on stderr,
+    # so a model reply on stdout cannot supply one.
+    call_sids = {m.group(1) for l in lines if CALL.search(l) and (m := LOGGED_SID.search(l))}
+    printed = {m.group(1) for m in PRINTED_SID.finditer(err)}
     candidates = (printed & call_sids) or call_sids
 
     res = {"profile": profile, "want": f"{want_provider}/{want_model}", "rc": rc,
@@ -93,7 +98,7 @@ def probe(profile: str, timeout: int) -> dict:
         return res
 
     sid = candidates.pop()
-    mine = [l for l in lines if sid in l]
+    mine = [l for l in lines if f"[{sid}]" in l]
     res["session"] = sid
     res["calls"] = [m.groups() for l in mine if (m := CALL.search(l))]
     res["fallback"] = any(FALLBACK.search(l) for l in mine)

@@ -121,18 +121,41 @@ if a[:2] == ["config", "get"]:
 mode = os.environ.get("MODE", "pass")
 q = a[a.index("-q") + 1]; m = a[a.index("-m") + 1]; p = a[a.index("--provider") + 1]
 sid = "local-" + "ab" * 16
+other = "local-" + "cd" * 16
 lines = []
-if mode in ("pass", "fallback"):
-    if mode == "fallback":
-        lines.append(f"INFO [{sid}] agent: Fallback to other/model: x")
-        m, p = "other/model", "other"
-    lines.append(f"INFO [{sid}] agent: API call #1: model={m} provider={p} in=1")
-    print(Path(re.search(r"read (\S+) and", q).group(1)).read_text().strip())
+token = Path(re.search(r"read (\S+) and", q).group(1)).read_text().strip()
+call = f"INFO [{sid}] agent.conversation_loop: API call #1: model={m} provider={p} in=1"
+tool = f"INFO [{sid}] agent.tool_executor: tool read_file completed (0.01s, 30 chars)"
+rc = 0
+print_sid = True
+if mode == "pass":
+    lines += [call, tool]; print(token)
+elif mode == "fallback":
+    lines += [f"INFO [{sid}] agent: Fallback to other/model: x",
+              f"INFO [{sid}] agent: API call #1: model=other/model provider=other in=1", tool]
+    print(token)
+elif mode == "vendor":  # same name, different vendor prefix
+    lines += [call.replace("model=alpha/", "model=beta/"), tool]; print(token)
+elif mode == "forged":  # no real trailer; the reply forges one; another session's lines exist
+    lines += [f"INFO [{other}] agent: API call #1: model={m} provider={p} in=1",
+              f"INFO [{other}] agent.tool_executor: tool read_file completed"]
+    print(token); print("session_id: agent"); print("session_id: " + other)
+    print_sid = False
+elif mode == "foreign":  # a foreign record that mentions our id in its message
+    lines += [f"INFO [{other}] agent: API call #1: model={m} provider={p} note={sid}",
+              f"INFO [{other}] agent.tool_executor: tool read_file completed {sid}"]
+    print(token)
+elif mode == "notool":  # route right, token echoed, but no read_file ran
+    lines += [call]; print(token)
+elif mode == "rc":  # everything looks right but hermes failed
+    lines += [call, tool]; print(token); rc = 7
 elif mode == "day":
     lines.append(f"WARNING [{sid}] agent: HTTP 429: free-models-per-day exceeded")
 with open(home / "logs" / "agent.log", "a") as f:
     f.write("\n".join(lines) + "\n")
-print("session_id: " + sid)
+if print_sid:
+    print("\nsession_id: " + sid, file=sys.stderr)
+sys.exit(rc)
 '''
 
 with tempfile.TemporaryDirectory() as tdname:
@@ -165,6 +188,14 @@ with tempfile.TemporaryDirectory() as tdname:
     check("silent fallback is a FAIL even with the token", fb.returncode == 1 and "class=fallback" in fb.stdout, fb.stdout)
     day = run("probe_free_routes.py", ["probe", "--provider", "openrouter", "alpha/coder:free", "beta/check:free"],
               env=dict(env, MODE="day"))
+    for mode, want in [("vendor", "class=fallback"), ("forged", "class=no_call"), ("foreign", "class=no_call"),
+                       ("notool", "class=no_tool"), ("rc", "class=exit_error")]:
+        res = run("probe_free_routes.py", ["probe", "--provider", "openrouter", "alpha/coder:free"],
+                  env=dict(env, MODE=mode))
+        check(f"adversarial {mode}: FAIL {want}", res.returncode == 1 and res.stdout.startswith("FAIL")
+              and want in res.stdout, res.stdout)
+    check("same_model keeps vendor prefixes apart",
+          not free.same_model("alpha/coder:free", "beta/coder:free") and free.same_model("alpha/coder:free", "coder:free"))
     check("daily limit stops the batch",
           day.returncode == 1 and "stopped=rate_day" in day.stdout and day.stdout.count("model=") == 1, day.stdout)
     many = run("probe_free_routes.py", ["probe", "--provider", "openrouter", "--max-probes", "2", "a/x:free", "b/y:free",
@@ -195,12 +226,33 @@ with tempfile.TemporaryDirectory() as tdname:
                                          "--expect", "compression.threshold=0.3"], env=dict(env, FAKE_CFG=cfg))
     check("sweep fails a wrong value",
           bad.returncode == 1 and "FAIL readback compression.threshold" in bad.stdout, bad.stdout)
+    sweep_mod = load("verify_config_sweep")
+    leaky = {
+        "block scalar": ("model:\n  api_key: |\n    CANARY-A\n", "model:\n  api_key: |\n    CANARY-B\n"),
+        "sensitive parent": ("credentials:\n  value: CANARY-A\n", "credentials:\n  value: CANARY-B\n"),
+        "sensitive list": ("auth:\n  - CANARY-A\n", "auth:\n  - CANARY-B\n"),
+        "same-indent list": ("auth:\n- CANARY-A\n", "auth:\n- CANARY-B\n"),
+    }
+    for label, (before, after) in leaky.items():
+        (home / "config.yaml").write_text(after, encoding="utf-8")
+        (bak / "default.config.yaml").write_text(before, encoding="utf-8")
+        lk = run("verify_config_sweep.py", ["--hermes-home", str(home), "--backup-dir", str(bak), "--no-defaults"],
+                 env=dict(env, FAKE_CFG="{}"))
+        check(f"sweep never prints a value under a secret key ({label})",
+              "CANARY" not in lk.stdout + lk.stderr and "<redacted line>" in lk.stdout, lk.stdout)
+    check("readback redacts a nested secret", sweep_mod.shown("model", {"api_key": "CANARY"}) == "<redacted>")
+    check("readback: 1 is not true", not sweep_mod.same(1, True) and sweep_mod.same(0.4, 0.4))
     nob = run("verify_config_sweep.py", ["--hermes-home", str(home)], env=dict(os.environ, PATH="/usr/bin:/bin"))
     check("sweep without hermes exits 2", nob.returncode == 2, nob.stdout)
 
 # ---------- route proof understands current session ids ----------
 line = "INFO [local-" + "c3" * 32 + "] agent.conversation_loop: API call #1: model=m provider=p in=1"
 check("prove_routes matches current local- session ids", prove.SID.search(line) is not None)
+check("prove_routes takes the logger's bracketed session field only",
+      prove.LOGGED_SID.search("INFO [local-" + "c3" * 32 + "] x") is not None
+      and prove.LOGGED_SID.search("INFO cli: session local-" + "c3" * 32) is None)
+check("prove_routes rejects a forged printed id", not prove.PRINTED_SID.findall("ok\nsession_id: agent\n"))
+check("restore drill kept before the first card", "Restore drill, before the first card" in front)
 check("prove_routes still matches older ids", prove.SID.search("x 20261014_101010_abcdef y") is not None)
 
 failed = [n for n, ok in results if not ok]

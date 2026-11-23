@@ -41,12 +41,15 @@ from pathlib import Path
 OPENROUTER_MODELS = "https://openrouter.ai/api/v1/models"
 CALL = re.compile(r"API call #\d+: model=(\S+) provider=(\S+)")
 FALLBACK = re.compile(r"Fallback (to|activated)")
-PRINTED_SID = re.compile(r"session_id:\s*(\S+)")
+# Hermes prints the session id on stderr, never mixed with the model's reply (stdout).
+PRINTED_SID = re.compile(r"^session_id:\s*(local-[0-9a-f]{16,}|\d{8}_\d{6}_[0-9a-f]{6})\s*$", re.M)
+TOOL_DONE = re.compile(r"\btool read_file completed\b")
 HINTS = {
     "ok": "assignable",
     "no_tool": "drop_id",
     "fallback": "route_failed_silently",
     "no_call": "check_provider_auth",
+    "exit_error": "read_hermes_error",
     "silence": "drop_id",
     "rate_minute": "wait_one_minute",
     "rate_day": "stop_for_utc_day",
@@ -127,11 +130,17 @@ def print_rows(rows: list[dict], limit: int) -> None:
 
 
 def same_model(want: str, logged: str) -> bool:
-    return logged == want or logged.split("/", 1)[-1] == want.split("/", 1)[-1]
+    """Exact id, or a bare id on one side matching the other's name. Two vendor prefixes must agree."""
+    if logged == want:
+        return True
+    if "/" in logged and "/" in want:
+        return False
+    return logged.split("/", 1)[-1] == want.split("/", 1)[-1]
 
 
 def classify(*, timed_out: bool, token_seen: bool, calls: list[tuple[str, str]], fallback: bool,
-             want_model: str, want_provider: str, log_text: str) -> str:
+             want_model: str, want_provider: str, log_text: str, tool_ran: bool = True,
+             exit_ok: bool = True) -> str:
     """Score one probe from what Hermes printed and what its log recorded."""
     low = log_text.lower()
     if "429" in low or "rate limit" in low:
@@ -146,7 +155,9 @@ def classify(*, timed_out: bool, token_seen: bool, calls: list[tuple[str, str]],
     on_route = all(p == want_provider and same_model(want_model, m) for m, p in calls)
     if fallback or not on_route:
         return "fallback"
-    return "ok" if token_seen else "no_tool"
+    if not (token_seen and tool_ran):
+        return "no_tool"
+    return "ok" if exit_ok else "exit_error"
 
 
 def log_path(profile: str | None) -> Path:
@@ -172,9 +183,9 @@ def probe_one(hermes: str, model_id: str, provider: str, profile: str | None, ti
         try:
             r = subprocess.run(argv, cwd=work, capture_output=True, text=True,
                                timeout=timeout, stdin=subprocess.DEVNULL)
-            out, timed_out = (r.stdout or "") + (r.stderr or ""), False
-        except subprocess.TimeoutExpired as exc:
-            out, timed_out = str(exc.stdout or ""), True
+            out, err, rc, timed_out = r.stdout or "", r.stderr or "", r.returncode, False
+        except subprocess.TimeoutExpired:
+            out, err, rc, timed_out = "", "", None, True
         elapsed = time.monotonic() - began
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -185,13 +196,15 @@ def probe_one(hermes: str, model_id: str, provider: str, profile: str | None, ti
         with open(lp, encoding="utf-8", errors="replace") as f:
             f.seek(start)
             new = f.read()
-    sid_match = PRINTED_SID.search(out)
-    sid = sid_match.group(1) if sid_match else ""
-    mine = [l for l in new.splitlines() if sid and sid in l]
+    found = PRINTED_SID.findall(err)
+    sid = found[-1] if found else ""
+    # Only records whose logger session field is exactly this session.
+    mine = [l for l in new.splitlines() if sid and f"[{sid}]" in l]
     calls = [(m.group(1), m.group(2)) for l in mine if (m := CALL.search(l))]
     kind = classify(timed_out=timed_out, token_seen=token in out, calls=calls,
                     fallback=any(FALLBACK.search(l) for l in mine), want_model=model_id,
-                    want_provider=provider, log_text="\n".join(mine))
+                    want_provider=provider, log_text="\n".join(mine),
+                    tool_ran=any(TOOL_DONE.search(l) for l in mine), exit_ok=rc == 0)
     return {"id": model_id, "kind": kind, "calls": calls, "elapsed": elapsed, "session": sid or "-"}
 
 

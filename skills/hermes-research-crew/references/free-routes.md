@@ -8,8 +8,9 @@ $0 here means OpenRouter free-tier variants, Nous Portal's free models, or a mod
 
 `scripts/probe_free_routes.py probe` runs one real Hermes one-shot on the candidate route. It asks the model to read a file holding a random token, with only the file tool available. A model can return the token only by calling the tool. Hermes uses its own stored credential; the script never reads a key or an `.env` file. The answering route is read from that run's lines in `agent.log`.
 
-- **PASS** (`class=ok`): the token came back, and every API call in the log was the candidate id on the named provider. It may hold a desk.
-- **FAIL** `no_tool`: the route answered but without the token. Do not assign it to a desk that must use tools.
+- **PASS** (`class=ok`): Hermes exited 0, the token came back, the session's log records a completed `read_file`, and every API call in that session was the candidate id on the named provider. The session is the id Hermes printed on stderr, matched exactly against each log record's session field. It may hold a desk.
+- **FAIL** `no_tool`: the route answered without the token, or no `read_file` ran. Do not assign it to a desk that must use tools.
+- **FAIL** `exit_error`: Hermes itself exited non-zero. Read its error before retrying.
 - **FAIL** `fallback`: another model answered (`saw=` names it). The profile's fallback hid a failure of the candidate. Treat the candidate as failed, and note that the profile has a silent fallback (constraint 3).
 - **FAIL** `no_call`: no API call was logged for the run. Usually the provider has no credential in Hermes yet: the user runs `hermes auth add <provider>`.
 - **FAIL** `silence`: timeout (default 150s). Drop the id.
