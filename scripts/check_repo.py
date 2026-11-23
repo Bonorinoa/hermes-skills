@@ -2,7 +2,7 @@
 """Structural checks for the hermes-skills repo. Read-only, no network.
 
 Checks, per skill:
-  1. frontmatter parses; name matches the folder; description present and <= 60 chars
+  1. frontmatter parses; name matches the folder; description present (warn if over 60 chars)
   2. every referenced in-skill path (references/, templates/, scripts/) exists
   3. code fences balanced
   4. markdown tables have a consistent column count per table
@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "skills" / "hermes-research-crew" / "scripts"))
+import yaml_load  # noqa: E402
 
 
 def parse_frontmatter(text: str):
@@ -29,12 +31,6 @@ def parse_frontmatter(text: str):
 
 
 def main() -> int:
-    try:
-        import yaml
-    except ImportError:
-        print("PyYAML missing; run with the Hermes runtime python")
-        return 2
-
     fails: list[str] = []
     warns: list[str] = []
 
@@ -49,7 +45,7 @@ def main() -> int:
             fails.append(f"{skill.name}: no frontmatter")
             continue
         try:
-            fm = yaml.safe_load(fm_raw) or {}
+            fm = yaml_load.load_text(fm_raw) or {}
         except Exception as exc:  # noqa: BLE001
             fails.append(f"{skill.name}: frontmatter does not parse: {exc}")
             continue
@@ -63,6 +59,11 @@ def main() -> int:
             warns.append(f"{skill.name}: description is {len(desc)} chars (>60): {desc}")
         if not fm.get("version"):
             warns.append(f"{skill.name}: no version")
+        platforms = fm.get("platforms")
+        if platforms is not None:
+            allowed = {"linux", "macos", "windows"}
+            if not isinstance(platforms, list) or any(p not in allowed for p in platforms):
+                fails.append(f"{skill.name}: platforms must be a list of {sorted(allowed)}")
 
         md_files = sorted(skill.rglob("*.md"))
         for md in md_files:
@@ -95,6 +96,7 @@ def main() -> int:
             for d in sorted(dupes):
                 warns.append(f"{rel}: duplicate heading {d!r}")
 
+        uses_fcntl = False
         for py in sorted((skill / "scripts").glob("*.py")) if (skill / "scripts").is_dir() else []:
             import py_compile
 
@@ -102,6 +104,10 @@ def main() -> int:
                 py_compile.compile(str(py), doraise=True)
             except py_compile.PyCompileError as exc:
                 fails.append(f"{py.relative_to(ROOT)}: does not compile: {exc}")
+            if re.search(r"^\s*(import fcntl|from fcntl import)\b", py.read_text(encoding="utf-8"), re.M):
+                uses_fcntl = True
+        if uses_fcntl and not fm.get("platforms"):
+            warns.append(f"{skill.name}: a script imports fcntl but frontmatter has no platforms")
         print(f"checked {skill.name}: {len(md_files)} md file(s)")
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")

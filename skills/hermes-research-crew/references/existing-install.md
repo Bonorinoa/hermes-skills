@@ -36,7 +36,7 @@ the insurance choice, and the undo checklist. Approve the plan before any write.
    answered up front):
 
    ```bash
-   "$HERMES_PY" scripts/insurance_backup.py --out ~/hermes-backups --retain <forever|N>
+   python3 <SKILL_DIR>/scripts/insurance_backup.py --out ~/hermes-backups --retain <forever|N>
    ```
 
    With N days it prints a cron line that deletes this one archive after N days
@@ -95,7 +95,7 @@ the insurance choice, and the undo checklist. Approve the plan before any write.
    `hermes -p <p> config set`, then run:
 
    ```bash
-   "$HERMES_PY" scripts/verify_config_sweep.py --backup-dir "$B" \
+   python3 <SKILL_DIR>/scripts/verify_config_sweep.py --backup-dir "$B" \
      --expect 'auxiliary/vision/provider=<provider>'
    ```
 

@@ -26,21 +26,14 @@ could not answer, and phrase each question for this user, in plain words.
 
 ## Step 1: probe (read-only)
 
-```bash
-hermes --version
-hermes profile list                                   # existing profiles: S1 branch
-hermes auth list | awk '/^[a-z0-9-]+ \(/{print $1}'    # provider names ONLY; labels can be emails
-hermes kanban boards list
-hermes config get kanban.dispatch_in_gateway; hermes gateway status   # how cards would be dispatched
-uname -s; for t in git gh uv docker ollama; do command -v $t >/dev/null && echo "$t ok"; done
-gh auth status >/dev/null 2>&1 && echo "gh logged in"
-command -v ollama >/dev/null && ollama list                 # local models already pulled
-command -v nvidia-smi >/dev/null && nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
-```
+Run `python3 <SKILL_DIR>/scripts/probe_install.py` and keep its stdout.
+`<SKILL_DIR>` is the `skill_dir=` line in that stdout (the script prints its
+own directory). Do not reimplement the probe with awk or a shell loop. The
+script prints provider names only.
 
-Exact model ids come later, with the user, from `hermes model` (an interactive
-picker that reads each provider's live model list). See `team-design.md`
-step 6.
+Exact model ids are not chosen here. Free and local ids come from a live
+catalog after approval (`free-routes.md`). `hermes model` writes config, so it
+stays out of planning.
 
 Spine files (S11) are found per project, not in one place: once the user names
 the workspace, list candidates under each project root (`README*`, `AGENTS.md`,
@@ -121,17 +114,24 @@ two or three plain sentences with the reason.
 
 | # | Verdict | When | What to offer |
 |---|---|---|---|
-| 1 | **Not yet** | The user will not review output, or has no usable model access | Explain what would change the answer (agreeing to review blocks; one working route). Offer a single attended profile meanwhile. |
+| 1 | **Not yet** | The user will not review output, or no route answered the capability probe (and there is no unprobed credential left to try) | Explain what would change the answer (agreeing to review; one route that calls a tool and answers on time). Offer a single attended profile if anything answers at all. |
 | 2 | **Single profile** | Work is mostly short, attended tasks (one sitting, few steps), with no publication stakes and no restricted data, however many projects there are | One profile, attended, with good skills. Use the short plan form. |
-| 3 | **Small team** | Short tasks with stakes (publication or restricted data); or only free-tier models; or no route may run unattended | Orchestrator + verifier in attended mode: the orchestrator (with the user) does the work, and checks run only while the user is present. |
-| 4 | **Full team** | Everything else: long or many-step tasks, or a steady queue of medium ones, with at least one route allowed to run unattended | Orchestrator + engineer + verifier + writer, plus creative or hygiene if S8 asks for them. A single complex project qualifies. If the verifier's only route is attended-only, say "Full team, attended checks": producers run unattended, checks wait for the user. |
+| 3 | **Small team** | Short tasks with stakes (publication or restricted data), or the probe found no tool-using model that can do the engineer job | Orchestrator + verifier, attended: the orchestrator does the work with the user, and checks run only while the user is present. |
+| 4 | **Full team, attended** | Long or many-step tasks, or a steady queue of medium ones, and no route may run unattended (free tier, an attended-only seat, or a local model that has not passed the first card yet) | The full roster, including engineer and writer. Background dispatch stays off. One card at a time, while the user is present. A passing free route is enough for this row. It is not a reason to drop a desk. |
+| 5 | **Full team** | The same work shape as row 4, with at least one route allowed to run unattended | Orchestrator + engineer + verifier + writer, plus creative or hygiene if S8 asks for them. A single complex project qualifies. If the verifier's only route is attended-only, say "Full team, attended checks": producers run unattended, checks wait for the user. |
 
 The number of projects decides how many boards to create, not whether a team
 pays off. One hard project with long tasks benefits more than five easy ones.
 
+Do not use row 1 for "free models only". Free, Nous Portal free, and local
+routes that pass the probe in `free-routes.md` are usable access. Row 4 is the
+ordinary $0 outcome for long work. Spend the probe only after the user wants
+a team; it costs free-tier calls.
+
 After round 1 the verdict is provisional; round 2 can move it down the table,
 never up past row 1 or 2 conditions. Local models count as able to run cards
-unattended only after they pass the first card (`team-design.md`).
+unattended only after they pass the first card (`team-design.md`). Until then
+they stay on row 4.
 
 ### Overrides
 
@@ -210,7 +210,7 @@ Drop the second question when the answer to the first is "None of them".
 ## Writing the plan
 
 1. Fill `templates/setup-plan.md` with `team-design.md`. For Single profile or
-   Small team use the short form.
+   Small team use the short form. Full team, attended uses the full form.
 2. Show the whole plan, starting with its plain-language summary.
 3. Ask the insurance question: keep the backup archive forever, or delete it
    after N days (default 14, through a cron line the orchestrator may install)?

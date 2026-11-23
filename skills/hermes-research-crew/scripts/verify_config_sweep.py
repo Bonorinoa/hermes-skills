@@ -14,13 +14,13 @@ secret, password, auth, ...) are never printed. Changes outside the expected
 keys are reported and counted, not failed: read them.
 
 Usage:
-    ~/.hermes/hermes-agent/venv/bin/python verify_config_sweep.py \
+    python3 <SKILL_DIR>/scripts/verify_config_sweep.py \
         --backup-dir ~/.hermes/config-backups/2026-10-14-migration \
-        --expect 'auxiliary/vision/provider=nous' \
-        --expect 'auxiliary/vision/model=google/gemini-3.8-flash'
+        --expect 'auxiliary/vision/provider=nous'
 
-Requires PyYAML. The Hermes runtime python has it; a bare system python3 often
-does not.
+YAML is loaded with ruamel.yaml, then PyYAML, then a stdlib subset. Any of
+those is enough. Do not install a package for this script. SKILL_DIR is the
+directory that contains this skill (probe_install.py prints it).
 """
 from __future__ import annotations
 
@@ -29,10 +29,8 @@ import re
 import sys
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:  # pragma: no cover
-    sys.exit("PyYAML is required (it ships with Hermes): pip install pyyaml")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import yaml_load  # noqa: E402
 
 # Values under any key matching this are never printed, only reported as changed.
 SENSITIVE = re.compile(r"key|token|secret|passw|credential|auth|cookie|bearer", re.I)
@@ -94,9 +92,17 @@ def profiles_from_backup(backup_dir: Path) -> list[str]:
 def coerce(raw: str):
     """Parse an --expect value the way YAML would, so true/1/0.4 compare right."""
     try:
-        return yaml.safe_load(raw)
-    except yaml.YAMLError:
+        return yaml_load.parse_scalar(raw)
+    except yaml_load.UnsupportedYAML:
         return raw
+
+
+def load_config(text: str):
+    try:
+        return yaml_load.load_text(text)
+    except yaml_load.UnsupportedYAML as exc:
+        print(f"config YAML needs ruamel.yaml or PyYAML ({exc})", file=sys.stderr)
+        raise SystemExit(2) from exc
 
 
 def parse_expect(items: list[str]) -> dict[tuple[str, ...], object]:
@@ -150,7 +156,7 @@ def main() -> int:
             failures += 1
             continue
 
-        tree = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        tree = load_config(path.read_text(encoding="utf-8")) or {}
         print(f"== {profile}")
 
         for dotted, want in expect.items():
@@ -164,7 +170,7 @@ def main() -> int:
             if not backup.exists():
                 print(f"   (no backup at {backup}; skipping drift check)")
             else:
-                before = leaves(yaml.safe_load(backup.read_text(encoding="utf-8")) or {})
+                before = leaves(load_config(backup.read_text(encoding="utf-8")) or {})
                 after = leaves(tree)
                 changed = [
                     (k, before.get(k, "<ABSENT>"), after.get(k, "<ABSENT>"))
