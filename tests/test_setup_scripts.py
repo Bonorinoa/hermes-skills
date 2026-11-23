@@ -145,6 +145,10 @@ elif mode == "foreign":  # a foreign record that mentions our id in its message
     lines += [f"INFO [{other}] agent: API call #1: model={m} provider={p} note={sid}",
               f"INFO [{other}] agent.tool_executor: tool read_file completed {sid}"]
     print(token)
+elif mode == "foreignbracket":  # foreign session field, our id quoted in brackets in the message
+    lines += [f"INFO [{other}] agent: API call #1: model={m} provider={p} ref=[{sid}]",
+              f"INFO [{other}] agent.tool_executor: tool read_file completed ref=[{sid}]"]
+    print(token)
 elif mode == "notool":  # route right, token echoed, but no read_file ran
     lines += [call]; print(token)
 elif mode == "rc":  # everything looks right but hermes failed
@@ -189,6 +193,7 @@ with tempfile.TemporaryDirectory() as tdname:
     day = run("probe_free_routes.py", ["probe", "--provider", "openrouter", "alpha/coder:free", "beta/check:free"],
               env=dict(env, MODE="day"))
     for mode, want in [("vendor", "class=fallback"), ("forged", "class=no_call"), ("foreign", "class=no_call"),
+                       ("foreignbracket", "class=no_call"),
                        ("notool", "class=no_tool"), ("rc", "class=exit_error")]:
         res = run("probe_free_routes.py", ["probe", "--provider", "openrouter", "alpha/coder:free"],
                   env=dict(env, MODE=mode))
@@ -232,6 +237,10 @@ with tempfile.TemporaryDirectory() as tdname:
         "sensitive parent": ("credentials:\n  value: CANARY-A\n", "credentials:\n  value: CANARY-B\n"),
         "sensitive list": ("auth:\n  - CANARY-A\n", "auth:\n  - CANARY-B\n"),
         "same-indent list": ("auth:\n- CANARY-A\n", "auth:\n- CANARY-B\n"),
+        "flow scalar": ("model: {api_key:\n  CANARY-A\n}\n", "model: {api_key:\n  CANARY-B\n}\n"),
+        "flow nested": ("model: {auth: {token: CANARY-A}}\n", "model: {auth: {token: CANARY-B}}\n"),
+        "quoted key with space": ('model:\n  "api key": |\n    CANARY-A\n', 'model:\n  "api key": |\n    CANARY-B\n'),
+        "alias target": ("shared: &s CANARY-A\nmodel:\n  api_key: *s\n", "shared: &s CANARY-B\nmodel:\n  api_key: *s\n"),
     }
     for label, (before, after) in leaky.items():
         (home / "config.yaml").write_text(after, encoding="utf-8")
@@ -239,7 +248,7 @@ with tempfile.TemporaryDirectory() as tdname:
         lk = run("verify_config_sweep.py", ["--hermes-home", str(home), "--backup-dir", str(bak), "--no-defaults"],
                  env=dict(env, FAKE_CFG="{}"))
         check(f"sweep never prints a value under a secret key ({label})",
-              "CANARY" not in lk.stdout + lk.stderr and "<redacted line>" in lk.stdout, lk.stdout)
+              "CANARY" not in lk.stdout + lk.stderr and "drift: 2 changed line(s)" in lk.stdout, lk.stdout)
     check("readback redacts a nested secret", sweep_mod.shown("model", {"api_key": "CANARY"}) == "<redacted>")
     check("readback: 1 is not true", not sweep_mod.same(1, True) and sweep_mod.same(0.4, 0.4))
     nob = run("verify_config_sweep.py", ["--hermes-home", str(home)], env=dict(os.environ, PATH="/usr/bin:/bin"))
@@ -248,9 +257,11 @@ with tempfile.TemporaryDirectory() as tdname:
 # ---------- route proof understands current session ids ----------
 line = "INFO [local-" + "c3" * 32 + "] agent.conversation_loop: API call #1: model=m provider=p in=1"
 check("prove_routes matches current local- session ids", prove.SID.search(line) is not None)
-check("prove_routes takes the logger's bracketed session field only",
-      prove.LOGGED_SID.search("INFO [local-" + "c3" * 32 + "] x") is not None
-      and prove.LOGGED_SID.search("INFO cli: session local-" + "c3" * 32) is None)
+real = "2026-11-23 09:44:16,190 INFO [local-" + "ab" * 32 + "] agent.conversation_loop: API call #1"
+foreign = "2026-11-23 09:44:16,190 INFO [local-" + "cd" * 32 + "] agent: ref=[local-" + "ab" * 32 + "]"
+for mod in (free, prove):
+    check(f"{mod.__name__}: session is the logger field only",
+          mod.session_of(real) == "local-" + "ab" * 32 and mod.session_of(foreign) == "local-" + "cd" * 32)
 check("prove_routes rejects a forged printed id", not prove.PRINTED_SID.findall("ok\nsession_id: agent\n"))
 check("restore drill kept before the first card", "Restore drill, before the first card" in front)
 check("prove_routes still matches older ids", prove.SID.search("x 20261014_101010_abcdef y") is not None)

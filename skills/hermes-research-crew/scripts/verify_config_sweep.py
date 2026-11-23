@@ -141,16 +141,48 @@ def same(got, want) -> bool:
     return got == want
 
 
-def changed_lines(before: str, after: str) -> list[tuple[str, str, bool]]:
-    """(sign, line, secret) for every removed or added line."""
+PLAIN = re.compile(r"""^\s*(?:-\s+)?[A-Za-z_][A-Za-z0-9_.-]*\s*:\s+[^\s{}\[\]|>&*!'"#][^{}\[\]&*#]*$""")
+BLOCK_START = re.compile(r":\s*[|>][-+0-9]*\s*(#.*)?$")
+
+
+def hidden_lines(text: str) -> list[bool]:
+    """Per line: True unless the line is safe to print.
+
+    Fails closed. A line prints only when it is a plain one-line `key: value`
+    (no flow collection, block scalar, anchor, alias, tag or quotes), sits
+    outside any flow collection and block scalar body, and is not under a
+    secret-looking key. Everything else is shown only as a placeholder.
+    """
+    secret = secret_lines(text)
+    out: list[bool] = []
+    depth = 0           # open { or [ of a flow collection
+    block_indent = -1   # indent of the key that opened a block scalar
+    for i, line in enumerate(text.splitlines()):
+        indent = len(line) - len(line.lstrip(" "))
+        in_block = block_indent >= 0 and (not line.strip() or indent > block_indent)
+        if not in_block:
+            block_indent = -1
+        in_flow = depth > 0
+        depth = max(0, depth + line.count("{") + line.count("[") - line.count("}") - line.count("]"))
+        if not in_block and BLOCK_START.search(line):
+            block_indent = indent
+        safe = (not secret[i] and not in_block and not in_flow and depth == 0
+                and PLAIN.match(line) is not None and not SENSITIVE.search(line))
+        out.append(not safe)
+    return out
+
+
+def changed_lines(before: str, after: str) -> list[tuple[str, str, bool, bool]]:
+    """(sign, line, secret, hidden) for every removed or added line."""
     old, new = before.splitlines(), after.splitlines()
     old_secret, new_secret = secret_lines(before), secret_lines(after)
-    out: list[tuple[str, str, bool]] = []
+    old_hidden, new_hidden = hidden_lines(before), hidden_lines(after)
+    out: list[tuple[str, str, bool, bool]] = []
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(a=old, b=new, autojunk=False).get_opcodes():
         if tag == "equal":
             continue
-        out += [("-", old[i], old_secret[i]) for i in range(i1, i2)]
-        out += [("+", new[j], new_secret[j]) for j in range(j1, j2)]
+        out += [("-", old[i], old_secret[i], old_hidden[i]) for i in range(i1, i2)]
+        out += [("+", new[j], new_secret[j], new_hidden[j]) for j in range(j1, j2)]
     return out
 
 
@@ -210,11 +242,17 @@ def main() -> int:
                 lines = changed_lines(backup.read_text(encoding="utf-8"), cfg.read_text(encoding="utf-8"))
                 outside = 0
                 print(f"   drift: {len(lines)} changed line(s)")
-                for sign, line, secret in lines:
+                for sign, line, secret, hidden in lines:
                     m = LINE_KEY.match(line)
-                    if secret or not (m and m.group(1) in leaf_names):
+                    if secret or hidden or not (m and m.group(1) in leaf_names):
                         outside += 1
-                    print(f"     {sign} {'<redacted line>' if secret else line[:90]}")
+                    if secret:
+                        shown_line = "<redacted line>"
+                    elif hidden:
+                        shown_line = "<line not shown: not a plain key: value; compare the files yourself>"
+                    else:
+                        shown_line = line[:90]
+                    print(f"     {sign} {shown_line}")
                 if outside:
                     outside_total += outside
                     print(f"   note: {outside} changed line(s) outside the expected keys "

@@ -44,6 +44,15 @@ FALLBACK = re.compile(r"Fallback (to|activated)")
 # Hermes prints the session id on stderr, never mixed with the model's reply (stdout).
 PRINTED_SID = re.compile(r"^session_id:\s*(local-[0-9a-f]{16,}|\d{8}_\d{6}_[0-9a-f]{6})\s*$", re.M)
 TOOL_DONE = re.compile(r"\btool read_file completed\b")
+# The logger's own session field: "<date> <time> LEVEL [<session>] <logger>: ...".
+# Anchored at the start, so an id quoted later in a message never counts.
+LOG_FIELD = re.compile(r"^(?:\d{4}-\d{2}-\d{2} [\d:,.]+ )?[A-Z]+ \[([^\]]+)\] ")
+
+
+def session_of(line: str) -> str:
+    m = LOG_FIELD.match(line)
+    return m.group(1) if m else ""
+
 HINTS = {
     "ok": "assignable",
     "no_tool": "drop_id",
@@ -199,7 +208,7 @@ def probe_one(hermes: str, model_id: str, provider: str, profile: str | None, ti
     found = PRINTED_SID.findall(err)
     sid = found[-1] if found else ""
     # Only records whose logger session field is exactly this session.
-    mine = [l for l in new.splitlines() if sid and f"[{sid}]" in l]
+    mine = [l for l in new.splitlines() if sid and session_of(l) == sid]
     calls = [(m.group(1), m.group(2)) for l in mine if (m := CALL.search(l))]
     kind = classify(timed_out=timed_out, token_seen=token in out, calls=calls,
                     fallback=any(FALLBACK.search(l) for l in mine), want_model=model_id,
