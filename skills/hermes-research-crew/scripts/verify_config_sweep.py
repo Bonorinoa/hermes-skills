@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Verify a Hermes config sweep: read-back expectations + a line diff against a backup.
+"""Verify a Hermes config sweep: read-back expectations + where the config changed.
 
 Two independent checks per profile:
   1. EXPECTED - every key in the expected set (the neutral EXPECT map below, plus
                 any --expect overrides) reads back at its expected value, through
-                `hermes config get <key> --json`. Hermes parses its own config, so
-                this script needs no YAML library and runs on plain python3.
-  2. DRIFT    - a line diff of config.yaml against a pre-change backup. Every
-                changed line is shown. Lines whose key is not one of the expected
-                keys are counted as "outside the expected keys": read them.
+                `hermes config get <key> --json`. Hermes parses its own config and
+                masks credential values, so this script needs no YAML library.
+  2. DRIFT    - which lines of config.yaml differ from a pre-change backup:
+                a count and line numbers only. The text of a changed line is never
+                printed, because a config file can hold keys in YAML forms that no
+                line-based filter can recognise reliably. Open both files yourself
+                to read the changes.
 
 Scope note: this checks the keys it is told about. It is not a general config
-auditor and carries no provider- or user-specific values; pass those with
---expect. Lines under secret-looking keys (key, token, secret, password, auth, ...)
-are never printed.
+auditor and carries no provider- or user-specific values; pass those with --expect.
 
 Usage:
     python3 <SKILL_DIR>/scripts/verify_config_sweep.py \\
@@ -34,9 +34,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Lines or keys matching this are never printed, only counted.
+# Readback values under a key matching this are never printed.
 SENSITIVE = re.compile(r"key|token|secret|passw|credential|auth|cookie|bearer", re.I)
-LINE_KEY = re.compile(r"^\s*-?\s*[\"']?([A-Za-z_][A-Za-z0-9_.-]*)[\"']?\s*:")
 ABSENT = "<ABSENT>"
 
 # Portable defaults only: no provider or model ids. Dotted key -> expected value.
@@ -61,37 +60,6 @@ def shown(key: str, value) -> str:
     if SENSITIVE.search(key) or (isinstance(value, (dict, list)) and SENSITIVE.search(text)):
         return "<redacted>"
     return text[:40]
-
-
-def secret_lines(text: str) -> list[bool]:
-    """Per line: True when the line sits under a secret-looking key at any depth.
-
-    Tracks the YAML key path by indentation, so a block scalar, a nested map or a
-    list under `api_key:`, `auth:` or `credentials:` is secret even on lines that
-    do not name the key themselves. Errs toward redacting.
-    """
-    flags: list[bool] = []
-    stack: list[tuple[int, bool]] = []  # (indent, secret) of the open keys
-    for line in text.splitlines():
-        body = line.strip()
-        if not body or body.startswith("#"):
-            flags.append(any(s for _, s in stack))
-            continue
-        indent = len(line) - len(line.lstrip(" "))
-        # A list item may sit at its parent key's indent ("auth:\n- value").
-        item = body.startswith("-")
-        inherited = any(s for i, s in stack if i < indent or (item and i == indent))
-        m = LINE_KEY.match(line)
-        if m and not inherited:
-            while stack and stack[-1][0] >= indent:
-                stack.pop()
-            secret = bool(SENSITIVE.search(m.group(1)))
-            stack.append((indent, secret))
-            flags.append(secret or bool(SENSITIVE.search(line)))
-        else:
-            # a value line (block scalar, list item) or anything below a secret key
-            flags.append(inherited or bool(SENSITIVE.search(line)))
-    return flags
 
 
 def profile_home(home: Path, profile: str) -> Path:
@@ -135,55 +103,29 @@ def same(got, want) -> bool:
     if isinstance(got, bool) != isinstance(want, bool):
         return False
     numbers = (int, float)
-    if isinstance(got, numbers) and isinstance(want, numbers) \
-            and not isinstance(got, bool) and not isinstance(want, bool):
+    if isinstance(got, numbers) and isinstance(want, numbers):
         return abs(got - want) < 1e-9
     return got == want
 
 
-PLAIN = re.compile(r"""^\s*(?:-\s+)?[A-Za-z_][A-Za-z0-9_.-]*\s*:\s+[^\s{}\[\]|>&*!'"#][^{}\[\]&*#]*$""")
-BLOCK_START = re.compile(r":\s*[|>][-+0-9]*\s*(#.*)?$")
+def span(a: int, b: int) -> str:
+    """1-based inclusive line range for the half-open index range [a, b)."""
+    return str(a + 1) if b - a == 1 else f"{a + 1}-{b}"
 
 
-def hidden_lines(text: str) -> list[bool]:
-    """Per line: True unless the line is safe to print.
-
-    Fails closed. A line prints only when it is a plain one-line `key: value`
-    (no flow collection, block scalar, anchor, alias, tag or quotes), sits
-    outside any flow collection and block scalar body, and is not under a
-    secret-looking key. Everything else is shown only as a placeholder.
-    """
-    secret = secret_lines(text)
-    out: list[bool] = []
-    depth = 0           # open { or [ of a flow collection
-    block_indent = -1   # indent of the key that opened a block scalar
-    for i, line in enumerate(text.splitlines()):
-        indent = len(line) - len(line.lstrip(" "))
-        in_block = block_indent >= 0 and (not line.strip() or indent > block_indent)
-        if not in_block:
-            block_indent = -1
-        in_flow = depth > 0
-        depth = max(0, depth + line.count("{") + line.count("[") - line.count("}") - line.count("]"))
-        if not in_block and BLOCK_START.search(line):
-            block_indent = indent
-        safe = (not secret[i] and not in_block and not in_flow and depth == 0
-                and PLAIN.match(line) is not None and not SENSITIVE.search(line))
-        out.append(not safe)
-    return out
-
-
-def changed_lines(before: str, after: str) -> list[tuple[str, str, bool, bool]]:
-    """(sign, line, secret, hidden) for every removed or added line."""
+def changed_ranges(before: str, after: str) -> tuple[int, list[str], list[str]]:
+    """(changed line count, backup line ranges, current line ranges). No line text."""
     old, new = before.splitlines(), after.splitlines()
-    old_secret, new_secret = secret_lines(before), secret_lines(after)
-    old_hidden, new_hidden = hidden_lines(before), hidden_lines(after)
-    out: list[tuple[str, str, bool, bool]] = []
+    count, old_r, new_r = 0, [], []
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(a=old, b=new, autojunk=False).get_opcodes():
         if tag == "equal":
             continue
-        out += [("-", old[i], old_secret[i], old_hidden[i]) for i in range(i1, i2)]
-        out += [("+", new[j], new_secret[j], new_hidden[j]) for j in range(j1, j2)]
-    return out
+        count += (i2 - i1) + (j2 - j1)
+        if i2 > i1:
+            old_r.append(span(i1, i2))
+        if j2 > j1:
+            new_r.append(span(j1, j2))
+    return count, old_r, new_r
 
 
 def main() -> int:
@@ -207,7 +149,6 @@ def main() -> int:
     backup_dir = Path(args.backup_dir).expanduser() if args.backup_dir else None
     expect = {} if args.no_defaults else dict(EXPECT)
     expect.update(parse_expect(args.expect))
-    leaf_names = {k.rsplit(".", 1)[-1] for k in expect}
 
     profiles = args.profiles
     if not profiles:
@@ -219,7 +160,7 @@ def main() -> int:
         print("no profiles to check (no backups and no configs found)")
         return 1
 
-    failures = outside_total = 0
+    failures = changed_total = 0
     for profile in profiles:
         phome = profile_home(home, profile)
         cfg = phome / "config.yaml"
@@ -239,29 +180,19 @@ def main() -> int:
             if not backup.exists():
                 print(f"   (no backup at {backup}; skipping drift check)")
             else:
-                lines = changed_lines(backup.read_text(encoding="utf-8"), cfg.read_text(encoding="utf-8"))
-                outside = 0
-                print(f"   drift: {len(lines)} changed line(s)")
-                for sign, line, secret, hidden in lines:
-                    m = LINE_KEY.match(line)
-                    if secret or hidden or not (m and m.group(1) in leaf_names):
-                        outside += 1
-                    if secret:
-                        shown_line = "<redacted line>"
-                    elif hidden:
-                        shown_line = "<line not shown: not a plain key: value; compare the files yourself>"
-                    else:
-                        shown_line = line[:90]
-                    print(f"     {sign} {shown_line}")
-                if outside:
-                    outside_total += outside
-                    print(f"   note: {outside} changed line(s) outside the expected keys "
-                          "(reported, not failed; review them)")
+                count, old_r, new_r = changed_ranges(backup.read_text(encoding="utf-8"),
+                                                     cfg.read_text(encoding="utf-8"))
+                changed_total += count
+                print(f"   drift: {count} changed line(s)")
+                if count:
+                    print(f"     backup lines:  {', '.join(old_r) or '-'}")
+                    print(f"     current lines: {', '.join(new_r) or '-'}")
         print()
 
     print(f"checked {len(expect)} expected key(s) across {len(profiles)} profile(s)")
-    if outside_total:
-        print(f"UNEXPECTED CHANGES: {outside_total} line(s) (see notes above)")
+    if changed_total:
+        print(f"CHANGED LINES: {changed_total}. Open each backup and config.yaml yourself to read them; "
+              "the files may hold keys, so do not paste them into a chat.")
     print("FAILURES:", failures)
     return 1 if failures else 0
 

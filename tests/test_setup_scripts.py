@@ -223,10 +223,11 @@ with tempfile.TemporaryDirectory() as tdname:
                                         "--expect", "compression.threshold=0.4", "--expect", "x.flag=true"],
              env=dict(env, FAKE_CFG=cfg))
     check("sweep readback passes on typed values", sw.returncode == 0 and "FAILURES: 0" in sw.stdout, sw.stdout[-300:])
-    check("sweep shows the changed line", "threshold: 0.4" in sw.stdout and "threshold: 0.5" in sw.stdout, sw.stdout)
-    check("sweep redacts secret lines", "hush" not in sw.stdout and "previous-secret" not in sw.stdout
-          and "<redacted line>" in sw.stdout, sw.stdout)
-    check("sweep counts the secret line as outside the expected keys", "outside the expected keys" in sw.stdout)
+    check("sweep reports changed line numbers", "drift: 4 changed line(s)" in sw.stdout
+          and "backup lines:  2, 4" in sw.stdout and "current lines: 2, 4" in sw.stdout, sw.stdout)
+    check("sweep never prints changed line text", "threshold: 0." not in sw.stdout and "hush" not in sw.stdout
+          and "previous-secret" not in sw.stdout and "api_key" not in sw.stdout, sw.stdout)
+    check("sweep points the user at the files", "CHANGED LINES: 4" in sw.stdout)
     bad = run("verify_config_sweep.py", ["--hermes-home", str(home), "--no-defaults",
                                          "--expect", "compression.threshold=0.3"], env=dict(env, FAKE_CFG=cfg))
     check("sweep fails a wrong value",
