@@ -53,7 +53,7 @@ fallback_providers:
   (spending-limit 403s and usage-limit 429s have been observed rolling over). A
   dead primary is therefore silent; only `Fallback to` in `agent.log` shows it.
 - On card-working profiles, follow the fallback policy in `team-design.md`:
-  no free tiers.
+  a free model may be the primary, and it must not be the silent fallback.
 
 ## Leave alone
 

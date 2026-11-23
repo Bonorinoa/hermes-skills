@@ -36,7 +36,7 @@ the insurance choice, and the undo checklist. Approve the plan before any write.
    answered up front):
 
    ```bash
-   "$HERMES_PY" scripts/insurance_backup.py --out ~/hermes-backups --retain <forever|N>
+   python3 <SKILL_DIR>/scripts/insurance_backup.py --out ~/hermes-backups --retain <forever|N>
    ```
 
    With N days it prints a cron line that deletes this one archive after N days
@@ -95,13 +95,16 @@ the insurance choice, and the undo checklist. Approve the plan before any write.
    `hermes -p <p> config set`, then run:
 
    ```bash
-   "$HERMES_PY" scripts/verify_config_sweep.py --backup-dir "$B" \
+   python3 <SKILL_DIR>/scripts/verify_config_sweep.py --backup-dir "$B" \
      --expect 'auxiliary/vision/provider=<provider>'
    ```
 
-   The drift list must contain only keys you meant to change. Changes you did
-   not make usually mean another session is editing the install at the same
-   time. That is common. Stop and look before overwriting anything.
+   The script lists which lines changed (numbers only, never their text). The
+   user opens the backup and the live `config.yaml` to confirm those lines are
+   only keys you meant to change; do not print the files into the chat, they may
+   hold keys. Changes you did not make usually mean another session is editing
+   the install at the same time. That is common. Stop and look before
+   overwriting anything.
 
 6. **Record the undo checklist** in the plan's section 9: profiles retired
    (export tarballs), profiles created, config keys changed (old values live

@@ -15,8 +15,10 @@ Usage:
     python3 prove_routes.py --all
 
 Exit 0 only when every profile passes: right provider and model, no fallback,
-and the probe's reply actually arrived. A profile with a concurrent session
-that makes attribution ambiguous is reported AMBIGUOUS (non-zero), not passed.
+and the probe's reply actually arrived. The probe's session is the id Hermes
+prints on stderr; only log records whose session field is that id count, so a
+concurrent session can never supply the evidence. No printed id, or no call
+logged under it, is NO-CALL (non-zero).
 """
 from __future__ import annotations
 
@@ -30,7 +32,18 @@ from pathlib import Path
 
 HOME = Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
 PROBE = "Reply with exactly seat-ok and no other words."
-SID = re.compile(r"\b(\d{8}_\d{6}_[0-9a-f]{6})\b")
+ID = r"\d{8}_\d{6}_[0-9a-f]{6}|local-[0-9a-f]{16,}"  # older and current Hermes session ids
+SID = re.compile(r"\b(" + ID + r")\b")
+# The logger's own session field: "<date> <time> LEVEL [<session>] <logger>: ...".
+# Anchored at the start, so an id quoted later in a message never counts.
+LOG_FIELD = re.compile(r"^(?:\d{4}-\d{2}-\d{2} [\d:,.]+ )?[A-Z]+ \[([^\]]+)\] ")
+
+
+def session_of(line: str) -> str:
+    m = LOG_FIELD.match(line)
+    return m.group(1) if m else ""
+
+PRINTED_SID = re.compile(r"^session_id:\s*(" + ID + r")\s*$", re.M)
 CALL = re.compile(r"API call #\d+: model=(\S+) provider=(\S+)")
 FALLBACK = re.compile(r"Fallback (to|activated)")
 
@@ -70,9 +83,9 @@ def probe(profile: str, timeout: int) -> dict:
             ["hermes", "-p", profile, "chat", "-q", PROBE, "-Q", "--max-turns", "1"],
             capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL,
         )
-        out, rc = (r.stdout or "") + (r.stderr or ""), r.returncode
+        out, err, rc = r.stdout or "", r.stderr or "", r.returncode
     except subprocess.TimeoutExpired:
-        out, rc = "", "timeout"
+        out, err, rc = "", "", "timeout"
     time.sleep(1.0)  # let the log flush
 
     new = ""
@@ -82,9 +95,12 @@ def probe(profile: str, timeout: int) -> dict:
             new = f.read()
     lines = new.splitlines()
 
-    call_sids = {SID.search(l).group(1) for l in lines if CALL.search(l) and SID.search(l)}
-    printed = {m.group(1) for m in SID.finditer(out)}
-    candidates = (printed & call_sids) or call_sids
+    # The logger's session field is the bracketed id; Hermes prints the id on stderr,
+    # so a model reply on stdout cannot supply one.
+    printed = PRINTED_SID.findall(err)
+    # Only the session Hermes printed counts; never another session's records.
+    candidates = {printed[-1]} if printed and any(
+        CALL.search(l) and session_of(l) == printed[-1] for l in lines) else set()
 
     res = {"profile": profile, "want": f"{want_provider}/{want_model}", "rc": rc,
            "answer_ok": "seat-ok" in out, "calls": [], "fallback": False, "status": ""}
@@ -93,7 +109,7 @@ def probe(profile: str, timeout: int) -> dict:
         return res
 
     sid = candidates.pop()
-    mine = [l for l in lines if sid in l]
+    mine = [l for l in lines if session_of(l) == sid]
     res["session"] = sid
     res["calls"] = [m.groups() for l in mine if (m := CALL.search(l))]
     res["fallback"] = any(FALLBACK.search(l) for l in mine)

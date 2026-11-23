@@ -8,15 +8,15 @@ This is one repository for many skills. Each skill lives in its own folder under
 
 | Skill | Version | What it does |
 |---|---|---|
-| [hermes-research-crew](skills/hermes-research-crew/) | 0.12.0 (pre-release) | Set up a Hermes agent team for research projects. |
+| [hermes-research-crew](skills/hermes-research-crew/) | 0.13.0 (pre-release) | Set up a Hermes agent team for research projects. |
 
 ## Install
 
 ```
-hermes skills install Bonorinoa/hermes-skills/hermes-research-crew
+hermes skills install Bonorinoa/hermes-skills/skills/hermes-research-crew
 ```
 
-This installs the skill with its references, templates, and scripts, after Hermes runs its security scan. To see every skill in this repository, browse the [`skills/`](skills/) folder.
+This installs the skill with its references, templates, and scripts, after Hermes runs its security scan. The shorter `Bonorinoa/hermes-skills/hermes-research-crew` also works; the form above names the folder exactly. macOS or Linux only (the backup script uses a POSIX file lock). To see every skill in this repository, browse the [`skills/`](skills/) folder.
 
 ## Use
 
@@ -33,10 +33,12 @@ The agent starts an intake. It changes nothing until you approve a written plan.
 Every skill in this repo is checked structurally before a push: frontmatter parses, `description` fits the loader's limit, every `references/`, `templates/`, and `scripts/` path named in the body exists, code fences balance, markdown tables keep their column count, and scripts compile.
 
 ```
-python3 scripts/check_repo.py     # the Hermes runtime python has PyYAML
+python3 scripts/check_repo.py     # needs PyYAML (the Hermes runtime python has it)
+python3 tests/test_skill_scripts.py
+python3 tests/test_setup_scripts.py
 ```
 
-It runs on every push and pull request in `.github/workflows/check.yml`.
+They run on every push and pull request in `.github/workflows/check.yml`.
 
 ## What hermes-research-crew does
 
@@ -90,14 +92,24 @@ The intake may conclude that a team is not worth it. It checks these in order, a
 
 - **Not yet.** You won't review what the agents produce, or you have no working model access. It explains what would change the answer.
 - **Single profile.** Mostly short tasks done while you are present, nothing to publish, no restricted data. One well-configured profile beats a team, however many projects you have.
-- **Small team.** Short tasks with stakes, only free-tier models, or no account you may run unattended. An orchestrator and a verifier, used while you are present.
-- **Full team.** Everything else. A single project with long, many-step tasks qualifies.
+- **Small team.** Short tasks with stakes, or no model you can reach is able to use tools. An orchestrator and a verifier, used while you are present.
+- **Full team, attended.** Long or many-step work, but every route is free, local, or a seat you haven't cleared for automation. The full roster; cards run one at a time while you are there.
+- **Full team.** The same work, with at least one route you may run while you are away. A single project with long, many-step tasks qualifies.
 
 The agent gives the verdict with its reason. You can override it, but some limits hold regardless: nothing runs unattended on free-tier models, on a seat you haven't confirmed may be automated, or for someone who won't review the results. If you agree that a team is not worth it, the intake can end there.
 
 ## What it costs
 
 The skill itself is free. The team runs on whatever model access you have, and the skill does not assume premium subscriptions are needed: it matches each desk to the capability it needs and shows how to compare models on your own past tasks (cost and your time per accepted result). Pay-per-token routes cost money, so set a spend cap at the provider.
+
+### No paid models?
+
+The team also runs at $0: OpenRouter's free tier, Nous Portal's free models, or a model on your own machine.
+
+1. Get one Hermes chat working first: `hermes setup`, or `hermes auth add openrouter` and then `hermes model`. You add the key yourself; the agent never sees it.
+2. Say: `Set up hermes-research-crew. I only have free models.`
+
+The skill probes a few free models through Hermes. Each must actually use a tool, and a silent fallback to another model counts as a failure. Models that pass get the full roster in attended mode: nothing runs in the background. A new OpenRouter free key allows about 50 requests a day; setup spends about 8.
 
 ## Terms
 
@@ -107,18 +119,20 @@ The skill asks about this and defaults to attended-only when unsure. It never in
 
 ## Safety and scripts
 
-The skill includes four scripts. None of them deletes project files.
+The skill includes six scripts. None of them deletes project files or needs a package install. Only the insurance backup touches credentials: it copies the whole Hermes home, `.env` and `auth.json` included, into an owner-only archive on your machine. No script prints a credential.
 
+- `scripts/probe_install.py` is read-only: a short install snapshot (Hermes version, provider names, profiles, tools). It never prints account labels.
+- `scripts/probe_free_routes.py` lists free model ids from a live catalog, then probes chosen ids through a Hermes one-shot (one or two model calls each) and reads the answering route from `agent.log`. Hermes supplies the credential; the script never reads one.
 - `scripts/prove_routes.py` sends each profile one short probe message (one model call per profile), using the `hermes` CLI as a subprocess. It then checks that profile's `agent.log` to confirm the profile answered on its configured provider and model, with no silent fallback.
-- `scripts/verify_config_sweep.py` reads config back and diffs it against a pre-change snapshot. Values under secret-looking keys are never printed.
+- `scripts/verify_config_sweep.py` reads config back through `hermes config get` and reports which lines differ from a pre-change snapshot: a count and line numbers, never the text, so a key in the config cannot reach the terminal.
 - `scripts/insurance_backup.py` archives the Hermes home before a migration: databases are snapshotted consistently, the archive is owner-only, and it prints the restore command. With a retention of N days it can install a cron line that deletes that one archive and then removes itself. It restores the Hermes home only; other changes are undone with the plan's checklist. Standard library only; no model calls.
 - `scripts/hygiene_scan.py` is read-only: it lists stale scratch folders, large untracked files and prunable worktrees in your project roots, for the hygiene desk or for you to decide on.
 
-The Hermes security scan of version 0.11.0 returned the verdict SAFE (no high findings). Its MEDIUM findings are calls to `hermes` and `git` via subprocess, the optional cron line in the backup script, and documentation that mentions `uv run` and `pip install pyyaml`.
+Every release is scanned with the Hermes security scanner before it is pushed; install scans the copy you actually get.
 
 ## Status
 
-Version 0.12.0 is pre-release. It has been tested with simulated users, not yet with real ones.
+Version 0.13.0 is pre-release. It has been tested with simulated users, not yet with real ones.
 
 Renamed in 0.11.0: this skill was `the-three-musketeers` up to 0.10.0. If you installed it under that name, uninstall it (`hermes skills uninstall the-three-musketeers`) and install `hermes-research-crew`.
 
@@ -126,6 +140,6 @@ To give feedback, open a GitHub issue on this repository.
 
 ## Authors and license
 
-Augusto González-Bonorino and Claude (Anthropic), working together in Hermes.
+Augusto González-Bonorino and Claude (Anthropic), working together in Hermes. The 0.13.0 free-model path started from an audit by Grok and was revised before merge.
 
 MIT license. See [LICENSE](LICENSE). The copyright line names Augusto, since an AI cannot hold copyright.

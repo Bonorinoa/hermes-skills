@@ -93,7 +93,7 @@ answers.
 ## Cadence
 
 - **Daily, no model call:** a no-agent cron runs
-  `scripts/hygiene_scan.py --root <project> ... --json` and notifies only when a
+  `python3 <SKILL_DIR>/scripts/hygiene_scan.py --root <project> ... --json` and notifies only when a
   threshold is crossed. Dry-run it first: on a clean workspace it must print
   nothing worth sending.
 - **Weekly, or when the scan crosses a threshold:** one hygiene card. The desk
@@ -103,8 +103,9 @@ answers.
 ## Route and permissions
 
 - Model: careful, literal instruction following matters more than raw
-  capability; a mid-tier model is fine. It runs unattended, so no free tier.
-  It does not need to be a different family from the others.
+  capability. A free route is allowed while the user is present. It must not
+  run unattended on a free tier, because it deletes files. It does not need
+  to be a different family from the others.
 - Tools: terminal and file. No web, no browser.
 - Turn cap: 40.
 - Its own config lists only hygiene, file-handling and Kanban-worker skills.
@@ -112,8 +113,8 @@ answers.
 ## Commands
 
 ```bash
-"$HERMES_PY" scripts/hygiene_scan.py --root ~/research/proj-a --root ~/research/proj-b
-"$HERMES_PY" scripts/hygiene_scan.py --root ~/research/proj-a --ttl-days 7 --big-mb 500 --json
+python3 <SKILL_DIR>/scripts/hygiene_scan.py --root ~/research/proj-a --root ~/research/proj-b
+python3 <SKILL_DIR>/scripts/hygiene_scan.py --root ~/research/proj-a --ttl-days 7 --big-mb 500 --json
 df -h /System/Volumes/Data      # macOS data volume; on Linux, df -h on the home filesystem
 ps -axo pid=,ppid=,etime=,%cpu=,comm=     # processes without full command lines
 ```

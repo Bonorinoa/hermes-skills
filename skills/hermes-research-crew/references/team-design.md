@@ -29,9 +29,12 @@ checking the provider's live model list.
      answers (`ollama list` succeeds) and expect the usable context to be
      limited by VRAM. Record the provider id as UNVERIFIED here; the
      `hermes model` picker runs after approval, per step 8 (it writes config);
-   - free tier: attended only.
+   - free tier: a primary route when `free-routes.md` says PASS. Dispatch stays
+     attended (hard limit 1). The roster is still the one the work needs.
 2. **Engineer (Athos).** The route best at long, tool-using coding runs among
-   the unattended routes. If there is none, the setup is attended (Small team).
+   the routes that passed the probe. If none of those may run unattended, the
+   setup is attended (row 4), and the engineer still exists. Small team (row 3)
+   is for short work, or for a probe that found no tool-using coder.
 3. **Verifier (Porthos).** The best model from a family that differs from every
    producer's (engineer, writer, creative, and the orchestrator for anything it
    writes). If no second family exists, choose between a local open-weight model,
@@ -52,8 +55,9 @@ checking the provider's live model list.
    render and look at what it made. Otherwise the writer takes occasional
    figures.
 6. **Hygiene (Planchet), if S8 asks for it.** Careful, literal instruction
-   following matters more than raw capability; a mid-tier paid route is enough.
-   No free tier, because it deletes files unattended. It may share any family.
+   following matters more than raw capability. A free route is allowed only
+   while the user is present: this desk deletes files, so it never runs
+   unattended on a free tier. It may share any family.
 7. **Orchestrator (d'Artagnan, `default`).** The route the user is happy to chat
    with all day. It makes the most calls, so prefer a route whose cost does not
    grow per call (a flat-rate seat or a local model) or set a spend cap. Set its
@@ -82,12 +86,13 @@ usual ending).
 | Desk | Works cards unattended? | Fallback |
 |---|---|---|
 | Orchestrator | no (interactive) | A fast free or cheap model is acceptable; a human sees every answer. |
-| Engineer, writer, creative, hygiene | yes | None (the card blocks), or a same-tier paid route. Never a free tier. |
+| Engineer, writer, creative, hygiene | yes, when the route is allowed to | None (the card blocks), or a same-tier paid route. Never a free tier as the silent fallback. A free primary is allowed; it blocks, it does not hop. |
 | Verifier | yes | None, or a route outside every producer's family. |
 
 Pick a fallback by a timed one-call probe, never by name. Free model ids fail as
 403 (gated), 404 (retired), 429 (rate-capped), or a long silence, and only a
-probe tells them apart.
+probe tells them apart. Classification and the single retry are in
+`references/free-routes.md`.
 
 ## Choosing routes by capability, not brand
 
@@ -101,7 +106,7 @@ billing types.
 | Metered open-weight (DeepSeek, Qwen, Kimi, GLM, ...) | low cost per call; easy second family for the verifier; pinnable versions | tool-use reliability varies by model; set a spend cap at the provider |
 | Metered closed (vendor APIs) | strongest models without a subscription | cost on long unattended runs |
 | Local | private; no per-call cost | hardware limits context and speed; prove it on the first card |
-| Free tier | learning, attended experiments | never on a desk that runs cards unattended |
+| Free tier | a full attended team at $0, when the probe passes | 50 calls a day on a new OpenRouter key; never a silent fallback; never unattended dispatch |
 
 Mixed teams are normal: for example, the orchestrator on a subscription the
 user already has, the engineer and verifier on capped metered open-weight
@@ -182,14 +187,31 @@ responsibility.
 
 ## Worked examples
 
-**A. One subscription, $0.** PhD student; ChatGPT/Codex subscription; one
-large codebase and a paper.
+**A. No subscription, $0.** A student with an OpenRouter key, or a Nous Portal
+free account, or both, plus maybe Ollama. One codebase and a paper. No paid
+seat.
+- List the live `:free` catalog and probe at most 4 ids (`free-routes.md`).
+  Do not reuse an id from an old plan.
+- Engineer and writer: a PASS id. Verifier: a PASS id from another family.
+  If the probe found only one family, say "same-family review" and still build
+  the full roster.
+- Orchestrator: a PASS id the user can chat with. Delegation children may use
+  that same id. Context stays in the child, not in this chat.
+- Verdict: Full team, attended (row 4). Dispatch off. One card at a time, so
+  a 50-call day is not spent by a retry loop. Lock: paper numbers come from
+  pinned code and models, never from a free chat route.
+- Hygiene, if they asked for it: attended only.
+
+**A2. One subscription, no extra API spend.** PhD student; ChatGPT/Codex
+subscription; one large codebase and a paper.
 - Orchestrator, engineer, writer: `openai-codex`.
-- Verifier: no second family at $0. Offer three options: a local open-weight model
-  (if S10 shows the hardware), about $5-10/month metered for an open-weight
-  verifier, or a labelled same-family review.
-- Verdict: Full team with a caveat (long tasks), or Small team. Lock: paper
-  numbers come from pinned code and models, never from a chat seat.
+- Verifier: no second family on that subscription. Offer a local open-weight
+  model (if S10 shows the hardware), a small metered budget, a probed free
+  model from another family as an attended check, or a labelled same-family
+  review.
+- Verdict: Full team when the subscription may run unattended, with the
+  verifier caveat written in the plan. Lock: paper numbers come from pinned
+  code and models, never from a chat seat.
 
 **B. Institutional seat (terms unconfirmed) plus a personal subscription.**
 Claude seat through the university; personal Codex subscription; $20 budget.
