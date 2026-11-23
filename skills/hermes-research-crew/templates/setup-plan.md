@@ -3,7 +3,7 @@
 Status: DRAFT. Nothing below has been written yet.
 
 **Short form** (Single profile, Small team): fill sections 0, 1, 2, 3, 5, 8, 9, 10.
-**Full team**: fill every section.
+**Full team, attended** and **Full team**: fill every section.
 
 ## 0. In plain words
 
@@ -87,7 +87,7 @@ dispatch to attended-only seats, <anything else the user excluded>.
 
 ## 9. Insurance and rollback
 
-Insurance archive: `"$HERMES_PY" scripts/insurance_backup.py --out <dir> --retain <forever|N>`
+Insurance archive: `python3 <SKILL_DIR>/scripts/insurance_backup.py --out <dir> --retain <forever|N>`
 — retention: <forever | delete after N days, cron installed: yes/no>; restore:
 <the command from its output>. It restores the Hermes home only; the checklist
 below undoes everything else.

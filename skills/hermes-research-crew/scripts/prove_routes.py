@@ -30,7 +30,7 @@ from pathlib import Path
 
 HOME = Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
 PROBE = "Reply with exactly seat-ok and no other words."
-SID = re.compile(r"\b(\d{8}_\d{6}_[0-9a-f]{6})\b")
+SID = re.compile(r"\b(\d{8}_\d{6}_[0-9a-f]{6}|local-[0-9a-f]{16,})\b")  # older and current Hermes ids
 CALL = re.compile(r"API call #\d+: model=(\S+) provider=(\S+)")
 FALLBACK = re.compile(r"Fallback (to|activated)")
 
